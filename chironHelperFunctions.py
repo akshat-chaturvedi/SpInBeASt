@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from scipy.optimize import curve_fit
 import os
+from scipy.interpolate import interp1d
 
 def model_func(x, a, b, c, d, e, f):
     return a*x**5 + b*x**4 + c*x**3 + d*x**2 + e*x + f
@@ -91,6 +92,96 @@ def recursive_sigma_clipping(wavelengths, fluxes, degree=5, sigma_threshold=3, m
 
 def double_gaussian_fit(x, mu1, sigma1, A1, mu2, sigma2, A2):
     return A1*np.exp(-0.5*((x-mu1)**2)/(sigma1**2)) + A2*np.exp(-0.5*((x-mu2)**2)/(sigma2**2))
+
+def gaussian_pair(v, sep, sigma):
+    """
+    Construct a pair of oppositely signed Gaussians at ±sep/2.
+
+    Parameters:
+        v: list of x values for Gaussian function
+        sep: the separation of the two Gaussians
+        sigma: the width of the Gaussians
+
+    Returns:
+        Array of corresponding y values.
+    """
+    g1 = np.exp(-0.5 * ((v - sep/2) / sigma) ** 2)
+    g2 = -np.exp(-0.5 * ((v + sep / 2) / sigma) ** 2)
+    return g1 + g2
+
+def velocity_grid(wavelengths, line_center):
+    """
+    Converts input wavelengths to velocity shifts (in units of km/s) relative to line center.
+
+    Parameters:
+        wavelengths: array of input wavelengths
+        line_center: rest wavelength of line (e.g. 6562.8 Å for H Alpha)
+
+    Returns:
+        Array of velocity shifts (in units of km/s) relative to line center.
+    """
+    c = 3e5
+    return c * (wavelengths - line_center) / line_center
+
+def find_zero_crossing_nearest_zero(x, y):
+    """
+    Finds the crossing point of a function where the sign changes from negative to positive, or vice versa, closest to
+    x=0.
+
+    Parameters:
+        x: x values of function
+        y: y values of function
+
+    Returns:
+        x coordinate of crossing point nearest to x=0. Returns None if no zero-crossings found.
+    """
+    zero_crossings = []
+    sign_changes = np.where(np.diff(np.sign(y)))[0]
+
+    for i in sign_changes:
+        x0, x1 = x[i], x[i+1]
+        y0, y1 = y[i], y[i+1]
+        x_zero = x0 - y0 * (x1 - x0) / (y1 - y0)
+        zero_crossings.append(x_zero)
+
+    if not zero_crossings:
+        return None
+
+    return min(zero_crossings, key=lambda v: abs(v))
+
+def shafter_bisector_velocity(wavelengths, fluxes, line_center=6562.8, sep=10, sigma=5, v_window=5000, v_step=2.6):
+    """
+    Finds the bisector velocity of the wings of the H Alpha line in a 1D spectrum using the oppositely signed double
+    Gaussian cross-correlation method of Shafter, A. W., Szkody, P., & Thorstensen, J. R. 1986, ApJ, 308, 765.
+
+    Parameters:
+        wavelengths: array of input wavelengths
+        fluxes: array of input fluxes
+        line_center: rest wavelength of H Alpha (6562.8 Å)
+        sep: separation of the Gaussian pair
+        sigma: Gaussian width
+        v_window: ± velocity range to explore (in units of km/s)
+        v_step: velocity step size (in units of km/s)
+
+    Returns:
+        bisector_velocity: velocity at zero crossing closest to 0 (in km/s)
+        v_grid: velocity shift grid
+        ccf: cross-correlation function values
+
+    """
+    v_obs = velocity_grid(wavelengths, line_center)
+    interp_flux = interp1d(v_obs, fluxes, kind="linear", bounds_error=False, fill_value=0)
+
+    v_grid = np.arange(-v_window, v_window+v_step, v_step)
+    flux_grid = interp_flux(v_grid)
+
+    kernel = gaussian_pair(v_grid, sep=sep, sigma=sigma)
+
+    ccf = np.correlate(flux_grid, kernel, mode="same")
+
+    bisector_velocity = find_zero_crossing_nearest_zero(v_grid, ccf)
+
+    return bisector_velocity, v_grid, ccf
 
 
 if __name__ == '__main__':

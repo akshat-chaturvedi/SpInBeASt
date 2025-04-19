@@ -10,6 +10,7 @@ import sys
 import glob
 import json
 from scipy.optimize import curve_fit
+import scipy.signal as sig
 from astropy import units as u
 from astropy.visualization import quantity_support
 quantity_support()
@@ -17,8 +18,8 @@ from specutils import Spectrum1D
 from specutils.manipulation import FluxConservingResampler
 fluxcon = FluxConservingResampler()
 from barycorrpy import get_BC_vel
-from chironHelperFunctions import recursive_sigma_clipping, list_fits_files, double_gaussian_fit
-from hstHelperFunctions import list_fits_files_hst
+from chironHelperFunctions import *
+from hstHelperFunctions import *
 
 #TODO: Add logging capabilities to each of the classes
 
@@ -393,6 +394,75 @@ class CHIRONSpectrum:
 
             if not any(str(self.obs_jd) in line for line in jds):
                 with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt", "a") as f:
+                    f.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{self.bc_corr / 1000:.3f},"
+                            f"{rad_vel_bc_corrected:.3f}\n")
+
+    def radial_velocity_bisector(self, print_rad_vel=False):
+        """
+        Obtains the radial velocity for a star by cross correlating two oppositely signed Gaussians to the H Alpha profile
+        to sample the wings (similar to the bisector method as described in Wang, L. et al. AJ, 2023, 165, 203). It also
+        plots this bisector velocity onto the spectrum and transforms the wavelength axis to a radial velocity axis. It
+        then applies a barycentric correction to the derived radial velocity, and writes it into a datafile.
+
+        Parameters:
+            print_rad_vel (bool): Default=True, prints the radial velocity with the barycentric correction applied
+
+        Returns:
+            None
+        """
+        if os.path.exists("CHIRON_Spectra/StarSpectra/Plots/RV_HAlpha_Bisector"):
+            pass
+        else:
+            os.mkdir("CHIRON_Spectra/StarSpectra/Plots/RV_HAlpha_Bisector")
+            print("-->RV_HAlpha_Bisector directory created, plots will be saved here!")
+
+        with open(f'CHIRON_Spectra/StarSpectra/SpectraData/FullSpec/{self.star_name}_{self.obs_date}.json', 'r') as file:
+            spec = json.load(file)
+
+        h_alpha_order = 38
+        wavs = np.array(spec[f"{h_alpha_order}"]["Wavelengths"])  # Read in H Alpha order wavelengths
+        fluxes = np.array(spec[f"{h_alpha_order}"]["Fluxes"])  # Read in H Alpha order fluxes
+
+        v_bis, v_grid, ccf = shafter_bisector_velocity(wavs, fluxes, sep=10, sigma=5)
+
+        rad_vel_bc_corrected = v_bis - self.bc_corr/1000
+        if print_rad_vel:
+            print(f"Radial Velocity: \033[92m{rad_vel_bc_corrected:.4f} km/s\033[0m")
+
+        plot_ind = np.where((np.array(fluxes) - 1) > 0.25 * max(np.array(fluxes) - 1))[0]
+
+        fig, ax = plt.subplots(figsize=(20, 10))
+        ax.plot(((np.array(wavs) - 6562.8) / 6562.8) * 3e5, np.array(fluxes) - 1,
+                color="black", label="CCF")
+        ax.vlines(v_bis, 0.23 * max(fluxes - 1), 0.27 * max(fluxes - 1), color="r",
+                  alpha=0.8)
+        ax.hlines(0.25 * max(fluxes - 1), (((wavs - 6562.8) / 6562.8) * 3e5)[plot_ind[0]],
+                  (((wavs - 6562.8) / 6562.8) * 3e5)[plot_ind[-1]], color="k", alpha=0.8)
+        ax.tick_params(axis='x', labelsize=20)
+        ax.tick_params(axis='y', labelsize=20)
+        ax.tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
+                       width=1)
+        ax.set_xlabel("Radial Velocity [km s$^{-1}$]", fontsize=22)
+        ax.set_ylabel("Normalized Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=22)
+        ax.set_xlim(-500, 500)
+        ax.text(0.8, 0.8, fr"{self.star_name} H$\alpha$"
+                          f"\nHJD {self.obs_jd:.4f}\nRV = {v_bis:.3f} km/s",
+                color="k", fontsize=18, transform=ax.transAxes)
+        # ax.set_title("Cross Correlation Function w/ Gaussian Fit", fontsize=26)
+        # ax.legend(loc="upper right", fontsize=22)
+        fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/RV_HAlpha_Bisector/RV_{self.star_name}_{self.obs_date}.pdf",
+                    bbox_inches="tight", dpi=300)
+
+        if not os.path.exists("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt"):
+            with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "w") as file:
+                file.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{self.bc_corr / 1000:.3f},"
+                        f"{rad_vel_bc_corrected:.3f}\n")
+        else:
+            with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "r") as f:
+                jds = f.read().splitlines()
+
+            if not any(str(self.obs_jd) in line for line in jds):
+                with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "a") as f:
                     f.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{self.bc_corr / 1000:.3f},"
                             f"{rad_vel_bc_corrected:.3f}\n")
 
@@ -843,16 +913,18 @@ def chiron_main():
         star = CHIRONSpectrum(file)
         star.blaze_corrected_plotter(full_spec=True)
         star.multi_epoch_spec()
-        star.radial_velocity(print_rad_vel=True)
+        star.radial_velocity()
+        star.radial_velocity_bisector()
 
 
 if __name__ == '__main__':
+    pass
     # apo_main()
     # hst_main()
     # chiron_main()
-    with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt", "r") as f:
-        # Read the names
-        star_names = sorted(f.read().splitlines())
+    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "r") as f:
+        #Read the names
+        # star_names = sorted(f.read().splitlines())
     #
     # # Modify the names based on the condition
     # # for name in star_names:
@@ -863,7 +935,7 @@ if __name__ == '__main__':
     # #     modified_names.append(name)
     #
     # Write back to the file
-    with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt", "w") as file:
-        file.write("\n".join(star_names))
+    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "w") as file:
+    #     file.write("\n".join(star_names))
 
     # sky_plot()
