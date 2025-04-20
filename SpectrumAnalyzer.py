@@ -66,6 +66,7 @@ class CHIRONSpectrum:
         self.obs_jd = Time(self.hdr["EMMNWOB"], format='isot', scale='utc').jd
 
         # Get BC correction using barycorrpy package in units of m/s
+        # TODO: This isn't the actual correction, need to understand this better!
         self.bc_corr = get_BC_vel(JDUTC=self.obs_jd, starname=self.star_name, obsname="CTIO", ephemeris="de430")[0][0]
 
         # Append to inventory file containing star name and observation JD time
@@ -360,9 +361,10 @@ class CHIRONSpectrum:
         wlen_doppler = xArr[in_fitmin + np.argmin(yFit[in_fitmin:in_fitmax])]  # Find trough of double Gaussian fit
 
         rad_vel = ((wlen_doppler - 6562.8) / 6562.8) * 3e5  # Find radial velocity
-        rad_vel_bc_corrected = rad_vel - self.bc_corr/1000  # Apply barycentric correction
+        # rad_vel_bc_corrected = rad_vel - self.bc_corr/1000  # Apply barycentric correction
+
         if print_rad_vel:
-            print(f"RV = \033[92m{rad_vel_bc_corrected:.3f} km/s\033[0m")
+            print(f"RV = \033[92m{rad_vel:.3f} km/s\033[0m")
 
         plt.rcParams['font.family'] = 'Geneva'
         fig, ax = plt.subplots(figsize=(20, 10))
@@ -379,23 +381,21 @@ class CHIRONSpectrum:
         ax.tick_params(axis='both', which='major', length=10, width=1)
         ax.set_ylim(0.65, None)
         ax.set_xlim(-600, 800)
-        ax.text(0.8, 0.8, f"{self.star_name}\nHJD {self.obs_jd:.4f}\nRV = {rad_vel_bc_corrected:.3f} km/s",
+        ax.text(0.8, 0.8, f"{self.star_name}\nHJD {self.obs_jd:.4f}\nRV = {rad_vel:.3f} km/s",
                 color="k", fontsize=18, transform=ax.transAxes)
         fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/RV_HAlpha/RV_Fit_{self.star_name}_{self.obs_date}.pdf",
                     bbox_inches="tight", dpi=300)
 
         if not os.path.exists("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt"):
             with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt", "w") as file:
-                file.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{self.bc_corr / 1000:.3f},"
-                        f"{rad_vel_bc_corrected:.3f}\n")
+                file.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{rad_vel:.3f}\n")
         else:
             with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt", "r") as f:
                 jds = f.read().splitlines()
 
             if not any(str(self.obs_jd) in line for line in jds):
                 with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt", "a") as f:
-                    f.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{self.bc_corr / 1000:.3f},"
-                            f"{rad_vel_bc_corrected:.3f}\n")
+                    f.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{rad_vel:.3f}\n")
 
     def radial_velocity_bisector(self, print_rad_vel=False):
         """
@@ -425,9 +425,9 @@ class CHIRONSpectrum:
 
         v_bis, v_grid, ccf = shafter_bisector_velocity(wavs, fluxes, sep=10, sigma=5)
 
-        rad_vel_bc_corrected = v_bis - self.bc_corr/1000
+        # rad_vel_bc_corrected = v_bis - self.bc_corr/1000
         if print_rad_vel:
-            print(f"Radial Velocity: \033[92m{rad_vel_bc_corrected:.4f} km/s\033[0m")
+            print(f"Radial Velocity: \033[92m{v_bis:.3f} km/s\033[0m")
 
         plot_ind = np.where((np.array(fluxes) - 1) > 0.25 * max(np.array(fluxes) - 1))[0]
 
@@ -455,16 +455,14 @@ class CHIRONSpectrum:
 
         if not os.path.exists("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt"):
             with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "w") as file:
-                file.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{self.bc_corr / 1000:.3f},"
-                        f"{rad_vel_bc_corrected:.3f}\n")
+                file.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{v_bis:.3f}\n")
         else:
             with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "r") as f:
                 jds = f.read().splitlines()
 
             if not any(str(self.obs_jd) in line for line in jds):
                 with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "a") as f:
-                    f.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{self.bc_corr / 1000:.3f},"
-                            f"{rad_vel_bc_corrected:.3f}\n")
+                    f.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{v_bis:.3f}\n")
 
     @staticmethod
     def exp_time(v_mag_array, star_name_array):
@@ -821,7 +819,7 @@ class HSTSpectrum:
 
         plt.rcParams['font.family'] = 'Geneva'
         fig, ax = plt.subplots(figsize=(20, 10))
-        ax.plot(self.wavs[0], self.flux[0], color="k")
+        ax.plot(self.wavs[9], self.flux[9], color="k")
         ax.set_xlabel("Wavelength [Å]", fontsize=20)
         ax.set_ylabel("Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=20)
         ax.tick_params(axis='both', which='major', labelsize=18)
@@ -922,7 +920,7 @@ if __name__ == '__main__':
     # apo_main()
     # hst_main()
     # chiron_main()
-    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "r") as f:
+    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt", "r") as f:
         #Read the names
         # star_names = sorted(f.read().splitlines())
     #
@@ -935,7 +933,7 @@ if __name__ == '__main__':
     # #     modified_names.append(name)
     #
     # Write back to the file
-    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "w") as file:
+    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt", "w") as file:
     #     file.write("\n".join(star_names))
 
     # sky_plot()
