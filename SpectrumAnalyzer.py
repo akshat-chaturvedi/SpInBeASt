@@ -11,6 +11,7 @@ import glob
 import json
 from scipy.optimize import curve_fit
 import scipy.signal as sig
+from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astropy.visualization import quantity_support
 quantity_support()
@@ -434,10 +435,9 @@ class CHIRONSpectrum:
         fig, ax = plt.subplots(figsize=(20, 10))
         ax.plot(((np.array(wavs) - 6562.8) / 6562.8) * 3e5, np.array(fluxes) - 1,
                 color="black", label="CCF")
-        ax.vlines(v_bis, 0.23 * max(fluxes - 1), 0.27 * max(fluxes - 1), color="r",
-                  alpha=0.8)
+        ax.vlines(v_bis, 0.23 * max(fluxes - 1), 0.27 * max(fluxes - 1), color="r", zorder=1)
         ax.hlines(0.25 * max(fluxes - 1), (((wavs - 6562.8) / 6562.8) * 3e5)[plot_ind[0]],
-                  (((wavs - 6562.8) / 6562.8) * 3e5)[plot_ind[-1]], color="k", alpha=0.8)
+                  (((wavs - 6562.8) / 6562.8) * 3e5)[plot_ind[-1]], color="k", alpha=0.8, zorder=0)
         ax.tick_params(axis='x', labelsize=20)
         ax.tick_params(axis='y', labelsize=20)
         ax.tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
@@ -855,38 +855,33 @@ class HSTSpectrum:
 
 
 def sky_plot(interactive=False):
-    plt.rcParams['font.family'] = 'Geneva'
     dat = pd.read_fwf("sim-id", header=None)
-    ra = dat[0].to_numpy()  # Right Ascension in degrees
-    dec = dat[1].to_numpy()  # Declination in degrees
-    star_names = dat[2].astype(str).to_numpy()  # Assuming the 3rd column contains star names
 
-    # Convert RA to range [-180, 180] degrees
-    ra = (ra + 180) % 360 - 180  # Wrap to [-180, 180]
-    # RA_wrapped = 180 - RA
+    ra = np.array(dat[0])  # Right Ascension in degrees
+    dec = np.array(dat[1])  # Declination in degrees
+    star_names = np.array(dat[2], dtype=str)  # Assuming the 3rd column contains star names
 
-    # Convert degrees to radians for Aitoff projection
-    ra_rad = np.radians(-ra)
-    dec_rad = np.radians(dec)
+    eq = SkyCoord(ra, dec, unit=u.deg)
 
-    fig, ax = plt.subplots(figsize=(8, 5), subplot_kw={"projection": "hammer"})
+    eq_ra, eq_dec = -eq.ra.wrap_at('180d').radian, eq.dec.radian
 
-    # Draw grid first
-    ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.6)
-
-    # Plot stars with a higher z-order
-    scatter = ax.scatter(ra_rad, dec_rad, s=15, zorder=2, color="#1e90ff", alpha=0.7)
+    plt.rcParams['font.family'] = 'Geneva'
+    fig, ax = plt.subplots(figsize=(8, 5), subplot_kw={"projection": "aitoff"})
+    ax.set_xticks(ticks=np.radians([-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150]),
+               labels=['150°', '120°', '90°', '60°', '30°', '0°', '330°', '300°', '270°', '240°', '210°'])
+    ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.6, zorder=0)
+    scatter = ax.scatter(eq_ra, eq_dec, s=15, zorder=2, color="#1e90ff")
 
     # Add interactivity with mplcursors
     cursor = mplcursors.cursor(scatter, hover=True)
     cursor.connect("add", lambda sel: sel.annotation.set_text(star_names[sel.index]))
-    plt.title("Be Star Targets")
+    ax.set_title("Be+sdO Targets")
 
     if interactive:
         plt.show()
 
     else:
-        plt.savefig("skyplot.pdf", bbox_inches="tight", dpi=300)
+        fig.savefig("skyplot.pdf", bbox_inches="tight", dpi=300)
 
 
 def apo_main():
