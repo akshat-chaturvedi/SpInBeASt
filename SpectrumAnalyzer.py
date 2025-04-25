@@ -19,6 +19,7 @@ from specutils import Spectrum1D
 from specutils.manipulation import FluxConservingResampler
 fluxcon = FluxConservingResampler()
 from barycorrpy import get_BC_vel
+from cmcrameri import cm
 from chironHelperFunctions import *
 from hstHelperFunctions import *
 
@@ -822,6 +823,7 @@ class ARCESSpectrum:
         else:
             with open("APO_Spectra/APOInventoryRV_Bisector.txt", "r") as f:
                 jds = f.read().splitlines()
+                print(jds)
 
             if not any(str(self.obs_jd) in line for line in jds):
                 with open("APO_Spectra/APOInventoryRV_Bisector.txt", "a") as f:
@@ -927,21 +929,45 @@ def sky_plot(interactive=False):
     dec = np.array(dat[1])  # Declination in degrees
     star_names = np.array(dat[2], dtype=str)  # Assuming the 3rd column contains star names
 
+    chiron_inventory = pd.read_csv("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt",
+                                   header=None)
+    apo_inventory = pd.read_csv("APO_Spectra/APOInventoryRV_Bisector.txt", header=None)
+
+    hst_inventory = pd.read_csv("HST_Spectra/HSTInventory.txt", header=None)
+
+    overall_obs_count = []
+    for name in star_names:
+        individual_obs_count = 0
+        # breakpoint()
+        if name in np.array(chiron_inventory[0]):
+            individual_obs_count += np.count_nonzero(np.array(chiron_inventory[0]) == name)
+        if name in np.array(apo_inventory[0]):
+            individual_obs_count += np.count_nonzero(np.array(apo_inventory[0]) == name)
+        overall_obs_count.append(individual_obs_count)
+
+    overall_target_inventory = pd.concat([dat[2], dat[0], dat[1], pd.Series(overall_obs_count)], axis="columns")
+    overall_target_inventory.columns = ["Name", "RA", "Dec", "Number of Observations"]
+    overall_target_inventory.to_csv("Be_sdO_Target_Inventory.txt", sep="\t", index=False)
+
     eq = SkyCoord(ra, dec, unit=u.deg)
 
     eq_ra, eq_dec = -eq.ra.wrap_at('180d').radian, eq.dec.radian
 
     plt.rcParams['font.family'] = 'Geneva'
-    fig, ax = plt.subplots(figsize=(8, 5), subplot_kw={"projection": "aitoff"})
+    fig, ax = plt.subplots(figsize=(20, 10), subplot_kw={"projection": "aitoff"})
     ax.set_xticks(ticks=np.radians([-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150]),
                labels=['150°', '120°', '90°', '60°', '30°', '0°', '330°', '300°', '270°', '240°', '210°'])
     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.6, zorder=0)
-    scatter = ax.scatter(eq_ra, eq_dec, s=15, zorder=2, color="#1e90ff")
+    scatter = ax.scatter(eq_ra, eq_dec, s=35, zorder=2, c=overall_obs_count, cmap=cm.roma)
+    ax.tick_params(axis='both', which='major', labelsize=18)
+    cbar = fig.colorbar(scatter, orientation='vertical', ticks=[0, 1, 2])
+    cbar.set_label('Number of Observations', fontsize=18)
+    cbar.ax.tick_params(labelsize=18)
 
     # Add interactivity with mplcursors
     cursor = mplcursors.cursor(scatter, hover=True)
     cursor.connect("add", lambda sel: sel.annotation.set_text(star_names[sel.index]))
-    ax.set_title("Be+sdO Targets")
+    ax.set_title("Be+sdO Targets", fontsize=20)
 
     if interactive:
         plt.show()
@@ -956,7 +982,7 @@ def apo_main():
         star = ARCESSpectrum(file)
         star.spec_plot()
         star.multi_epoch_spec()
-        star.radial_velocity_bisector(print_rad_vel=True)
+        star.radial_velocity_bisector()
 
 def hst_main():
     hst_fits_files = list_fits_files_hst("HST_Spectra")
