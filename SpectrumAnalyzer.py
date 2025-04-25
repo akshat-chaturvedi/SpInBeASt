@@ -761,6 +761,72 @@ class ARCESSpectrum:
                 fig.savefig(f"APO_Spectra/SpectrumPlots/Multi_Epoch/HBeta/ME_HBeta_{self.star_name}.pdf",
                             bbox_inches="tight", dpi=300)
 
+    def radial_velocity_bisector(self, print_rad_vel=False):
+        """
+        Obtains the radial velocity for a star by cross correlating two oppositely signed Gaussians to the H Alpha profile
+        to sample the wings (similar to the bisector method as described in Wang, L. et al. AJ, 2023, 165, 203). It also
+        plots this bisector velocity onto the spectrum and transforms the wavelength axis to a radial velocity axis. It
+        then applies a barycentric correction to the derived radial velocity, and writes it into a datafile.
+
+        Parameters:
+            print_rad_vel (bool): Default=True, prints the radial velocity with the barycentric correction applied
+
+        Returns:
+            None
+        """
+        if os.path.exists("APO_Spectra/SpectrumPlots/RV_HAlpha_Bisector"):
+            pass
+        else:
+            os.mkdir("APO_Spectra/SpectrumPlots/RV_HAlpha_Bisector")
+            print("-->RV_HAlpha_Bisector directory created, plots will be saved here!")
+
+        with fits.open("APO_Spectra/woned.fits") as wavelengths:
+            wavs = wavelengths[0].data
+
+        mask = (wavs >= 6550) & (wavs <= 6620)
+        wavs = wavs[mask]
+        fluxes = self.dat[mask]
+
+        v_bis, v_grid, ccf = shafter_bisector_velocity(wavs, fluxes, sep=10, sigma=5)
+
+        # rad_vel_bc_corrected = v_bis - self.bc_corr/1000
+        if print_rad_vel:
+            print(f"Radial Velocity: \033[92m{v_bis:.3f} km/s\033[0m")
+
+        plot_ind = np.where((np.array(fluxes) - 1) > 0.25 * max(np.array(fluxes) - 1))[0]
+
+        fig, ax = plt.subplots(figsize=(20, 10))
+        ax.plot(((np.array(wavs) - 6562.8) / 6562.8) * 3e5, np.array(fluxes) - 1,
+                color="black", label="CCF")
+        ax.vlines(v_bis, 0.23 * max(fluxes - 1), 0.27 * max(fluxes - 1), color="r", zorder=1)
+        ax.hlines(0.25 * max(fluxes - 1), (((wavs - 6562.8) / 6562.8) * 3e5)[plot_ind[0]],
+                  (((wavs - 6562.8) / 6562.8) * 3e5)[plot_ind[-1]], color="k", alpha=0.8, zorder=0)
+        ax.tick_params(axis='x', labelsize=20)
+        ax.tick_params(axis='y', labelsize=20)
+        ax.tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
+                       width=1)
+        ax.set_xlabel("Radial Velocity [km s$^{-1}$]", fontsize=22)
+        ax.set_ylabel("Normalized Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=22)
+        ax.set_xlim(-500, 500)
+        ax.text(0.8, 0.8, fr"{self.star_name} H$\alpha$"
+                          f"\nHJD {self.obs_jd:.4f}\nRV = {v_bis:.3f} km/s",
+                color="k", fontsize=18, transform=ax.transAxes)
+        # ax.set_title("Cross Correlation Function w/ Gaussian Fit", fontsize=26)
+        # ax.legend(loc="upper right", fontsize=22)
+        fig.savefig(f"APO_Spectra/SpectrumPlots/RV_HAlpha_Bisector/RV_{self.star_name}_{self.obs_date}.pdf",
+                    bbox_inches="tight", dpi=300)
+
+        if not os.path.exists("APO_Spectra/APOInventoryRV_Bisector.txt"):
+            with open("APO_Spectra/APOInventoryRV_Bisector.txt", "w") as file:
+                file.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{v_bis:.3f}\n")
+        else:
+            with open("APO_Spectra/APOInventoryRV_Bisector.txt", "r") as f:
+                jds = f.read().splitlines()
+
+            if not any(str(self.obs_jd) in line for line in jds):
+                with open("APO_Spectra/APOInventoryRV_Bisector.txt", "a") as f:
+                    f.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{v_bis:.3f}\n")
+
 class HSTSpectrum:
     def __init__(self, filename: str):
         """
@@ -890,7 +956,7 @@ def apo_main():
         star = ARCESSpectrum(file)
         star.spec_plot()
         star.multi_epoch_spec()
-
+        star.radial_velocity_bisector(print_rad_vel=True)
 
 def hst_main():
     hst_fits_files = list_fits_files_hst("HST_Spectra")
@@ -911,8 +977,8 @@ def chiron_main():
 
 
 if __name__ == '__main__':
-    # pass
-    apo_main()
+    pass
+    # apo_main()
     # hst_main()
     # chiron_main()
     # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt", "r") as f:
