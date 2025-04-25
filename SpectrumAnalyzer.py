@@ -597,7 +597,7 @@ class ARCESSpectrum:
             print("-->SpectrumPlots directory created, plots will be saved here!")
 
         # Read in FITS file containing calibrated wavelengths
-        with fits.open("APO_Spectra/FitsFiles/woned.fits") as wavelengths:
+        with fits.open("APO_Spectra/woned.fits") as wavelengths:
             w = wavelengths[0].data
 
         if h_alpha:
@@ -611,8 +611,8 @@ class ARCESSpectrum:
             plt.tick_params(axis='y', which='major', labelsize=20)
             plt.tick_params(axis='x', which='major', labelsize=20)
             ax.tick_params(axis='both', which='major', length=10, width=1)
-            ax.set_xlim(6500, 6700)
-            mask = (w >= 6500) & (w <= 6700)
+            ax.set_xlim(6550, 6620)
+            mask = (w >= 6550) & (w <= 6620)
             ax.set_ylim(0.5, np.max(self.dat[mask])+0.25)
             # ax.vlines(6562.8, -0.05, self.dat[np.argmin(abs(w - 6562.8))])
             ax.yaxis.get_offset_text().set_size(20)
@@ -911,8 +911,8 @@ def chiron_main():
 
 
 if __name__ == '__main__':
-    pass
-    # apo_main()
+    # pass
+    apo_main()
     # hst_main()
     # chiron_main()
     # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt", "r") as f:
