@@ -14,6 +14,8 @@ import scipy.signal as sig
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astropy.visualization import quantity_support
+from astropy.table import Table
+from astropy.io import ascii
 quantity_support()
 from specutils import Spectrum1D
 from specutils.manipulation import FluxConservingResampler
@@ -945,9 +947,13 @@ def sky_plot(interactive=False):
             individual_obs_count += np.count_nonzero(np.array(apo_inventory[0]) == name)
         overall_obs_count.append(individual_obs_count)
 
-    overall_target_inventory = pd.concat([dat[2], dat[0], dat[1], pd.Series(overall_obs_count)], axis="columns")
-    overall_target_inventory.columns = ["Name", "RA", "Dec", "Number of Observations"]
-    overall_target_inventory.to_csv("Be_sdO_Target_Inventory.txt", sep="\t", index=False)
+    data = Table()
+    data['Name'] = np.array(star_names)
+    data["RA"] = np.array(ra)
+    data["Dec"] = np.array(dec)
+    data["Number of Observations"] = np.array(overall_obs_count)
+    ascii.write(data, 'Be_sdO_Target_Inventory.txt', format='fixed_width', overwrite=True,
+                formats={'RA': '%.5f', 'Dec': '%.5f'}, bookend=False, delimiter=None)
 
     eq = SkyCoord(ra, dec, unit=u.deg)
 
@@ -958,11 +964,11 @@ def sky_plot(interactive=False):
     ax.set_xticks(ticks=np.radians([-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150]),
                labels=['150°', '120°', '90°', '60°', '30°', '0°', '330°', '300°', '270°', '240°', '210°'])
     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.6, zorder=0)
-    scatter = ax.scatter(eq_ra, eq_dec, s=35, zorder=2, c=overall_obs_count, cmap=cm.roma)
+    scatter = ax.scatter(eq_ra, eq_dec, s=35, zorder=2, c=overall_obs_count, cmap='cmc.roma')
     ax.tick_params(axis='both', which='major', labelsize=18)
-    cbar = fig.colorbar(scatter, orientation='vertical', ticks=[0, 1, 2])
+    cbar = fig.colorbar(scatter, orientation='vertical', ticks=np.arange(max(overall_obs_count)+1), pad=0.01)
     cbar.set_label('Number of Observations', fontsize=18)
-    cbar.ax.tick_params(labelsize=18)
+    cbar.ax.tick_params(labelsize=18, length=8, width=1)
 
     # Add interactivity with mplcursors
     cursor = mplcursors.cursor(scatter, hover=True)
@@ -983,12 +989,14 @@ def apo_main():
         star.spec_plot()
         star.multi_epoch_spec()
         star.radial_velocity_bisector()
+    print("\a")
 
 def hst_main():
     hst_fits_files = list_fits_files_hst("HST_Spectra")
     for file in hst_fits_files:
         star = HSTSpectrum(file)
         star.spec_plot(full_spec=True)
+    print("\a")
 
 
 def chiron_main():
@@ -1000,6 +1008,7 @@ def chiron_main():
         star.multi_epoch_spec()
         star.radial_velocity()
         star.radial_velocity_bisector()
+    print("\a")
 
 
 if __name__ == '__main__':
