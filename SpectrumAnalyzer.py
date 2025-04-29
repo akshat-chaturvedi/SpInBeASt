@@ -106,7 +106,10 @@ class CHIRONSpectrum:
                 wavs.append(self.dat[37][j][0])
                 fluxes.append(self.dat[37][j][1])
 
-            continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, degree=5, sigma_threshold=3)
+            if self.star_name == 'HR 2142' and self.obs_date == '2024-12-13':
+                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, degree=3, sigma_threshold=3)
+            else:
+                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, degree=5, sigma_threshold=3)
             wavs = np.array(wavs)
             fluxes = np.array(fluxes)
 
@@ -186,7 +189,10 @@ class CHIRONSpectrum:
                     wavs.append(self.dat[i][j][0])
                     fluxes.append(self.dat[i][j][1])
 
-                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, degree=5, sigma_threshold=3)
+                if self.star_name == "HR 2142" and self.obs_date == "2024-12-13":
+                    continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, degree=3, sigma_threshold=3)
+                else:
+                    continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, degree=5, sigma_threshold=3)
                 total_wavs.append(wavs)
                 fluxes = np.array(fluxes)
 
@@ -1001,7 +1007,6 @@ def hst_main():
 
 def chiron_main():
     chiron_fits_files = list_fits_files("CHIRON_Spectra/StarSpectra")
-    # chiron_fits_files = ["CHIRON_Spectra/StarSpectra/ANCol_First.fits"]
     for file in chiron_fits_files:
         star = CHIRONSpectrum(file)
         star.blaze_corrected_plotter(full_spec=True)
