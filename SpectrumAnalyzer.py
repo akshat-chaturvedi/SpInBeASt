@@ -1,4 +1,5 @@
 import os
+import time
 import numpy as np
 import pandas as pd
 from astropy.io import fits
@@ -22,6 +23,7 @@ from specutils.manipulation import FluxConservingResampler
 fluxcon = FluxConservingResampler()
 from barycorrpy import get_BC_vel
 from cmcrameri import cm
+import concurrent.futures
 from chironHelperFunctions import *
 from hstHelperFunctions import *
 
@@ -56,7 +58,7 @@ class CHIRONSpectrum:
             filename (str): the filepath to the CHIRON fits file, in the form "CHIRON_Spectra/StarSpectra/[star name]_[observation number].fits"
         """
         self.filename = filename
-        self.observation_number = self.filename.split("/")[2].split(".fits")[0].split("_")[1]
+        # self.observation_number = self.filename.split("/")[2].split(".fits")[0].split("_")[1]
 
         with fits.open(self.filename) as hdul:
             self.dat = hdul[0].data
@@ -81,13 +83,14 @@ class CHIRONSpectrum:
             with open("CHIRON_Spectra/StarSpectra/CHIRONInventory.txt", "a") as f:
                 f.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{self.bc_corr/1000:.3f}\n")
 
-    def blaze_corrected_plotter(self, h_alpha=True, h_beta=True, full_spec=False):
+    def blaze_corrected_plotter(self, h_alpha=True, h_beta=True, he_1_6678=False, full_spec=False):
         """
         Plots the full blaze-corrected CHIRON spectra as well as just the H Alpha and Beta orders (orders 37 and 7)
 
         Parameters:
             h_alpha (bool): Default=True, plots the order of the spectrum containing H Alpha 6563 Å (order 37)
             h_beta (bool): Default=True, plots the order of the spectrum containing H Beta 4862 Å (order 7)
+            he_1_6678 (bool): Default=False, plots the order of the spectrum containing He I 6678 Å (order 38)
             full_spec (bool): Default=False, plots the full spectrum
 
         Returns:
@@ -107,9 +110,11 @@ class CHIRONSpectrum:
                 fluxes.append(self.dat[37][j][1])
 
             if self.star_name == 'HR 2142' and self.obs_date == '2024-12-13':
-                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, degree=3, sigma_threshold=3)
+                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=38,
+                                                               degree=3, sigma_threshold=3)
             else:
-                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, degree=5, sigma_threshold=3)
+                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=38,
+                                                               degree=5, sigma_threshold=3)
             wavs = np.array(wavs)
             fluxes = np.array(fluxes)
 
@@ -127,6 +132,7 @@ class CHIRONSpectrum:
             ax.yaxis.get_offset_text().set_size(20)
             fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/HAlpha/HAlpha_{self.star_name}_{self.obs_date}.pdf",
                         bbox_inches="tight", dpi=300)
+            plt.close()
 
             wavs = pd.Series(wavs)
             fluxes = pd.Series(fluxes / continuum_fit)
@@ -148,7 +154,8 @@ class CHIRONSpectrum:
                 wavs.append(self.dat[7][j][0])
                 fluxes.append(self.dat[7][j][1])
 
-            continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, degree=5, sigma_threshold=3)
+            continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=8,
+                                                           degree=5, sigma_threshold=3)
             wavs = np.array(wavs)
             fluxes = np.array(fluxes)
 
@@ -166,12 +173,57 @@ class CHIRONSpectrum:
             ax.yaxis.get_offset_text().set_size(20)
             fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/HBeta/HBeta_{self.star_name}_{self.obs_date}.pdf",
                         bbox_inches="tight", dpi=300)
+            plt.close()
 
             wavs = pd.Series(wavs)
             fluxes = pd.Series(fluxes / continuum_fit)
             df = pd.concat([wavs, fluxes], axis="columns")
             df.columns = ["Wavelength", "Flux"]
             df.to_csv(f"CHIRON_Spectra/StarSpectra/SpectraData/HBeta/{self.star_name}_{self.obs_date}.csv",
+                      index=False)
+
+        if he_1_6678:
+            if os.path.exists("CHIRON_Spectra/StarSpectra/Plots/He_I_6678"):
+                pass
+            else:
+                os.mkdir("CHIRON_Spectra/StarSpectra/Plots/He_I_6678")
+                print("-->He_I_6678 directory created, plots will be saved here!")
+            wavs = []
+            fluxes = []
+            for j in range(3200):
+                wavs.append(self.dat[38][j][0])
+                fluxes.append(self.dat[38][j][1])
+
+            if self.star_name == 'HR 2142' and self.obs_date == '2024-12-13':
+                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=39,
+                                                               degree=3, sigma_threshold=3)
+            else:
+                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=39,
+                                                               degree=5, sigma_threshold=3)
+            wavs = np.array(wavs)
+            fluxes = np.array(fluxes)
+
+            # Plotting H Alpha order
+            plt.rcParams['font.family'] = 'Geneva'
+            fig, ax = plt.subplots(figsize=(20, 10))
+            ax.plot(wavs, fluxes / continuum_fit, c='k')
+            ax.set_title(f'{self.star_name}' + fr' {self.obs_date} He I $\lambda$6678', fontsize=24)
+            ax.set_xlabel("Wavelength [Å]", fontsize=22)
+            ax.set_ylabel("Normalized Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=22)
+            ax.tick_params(axis='both', which='both', direction='in', top=True, right=True)
+            ax.tick_params(axis='y', which='major', labelsize=20)
+            ax.tick_params(axis='x', which='major', labelsize=20)
+            ax.tick_params(axis='both', which='major', length=10, width=1)
+            ax.yaxis.get_offset_text().set_size(20)
+            fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/He_I_6678/He_I_6678_{self.star_name}_{self.obs_date}.pdf",
+                        bbox_inches="tight", dpi=300)
+            plt.close()
+
+            wavs = pd.Series(wavs)
+            fluxes = pd.Series(fluxes / continuum_fit)
+            df = pd.concat([wavs, fluxes], axis="columns")
+            df.columns = ["Wavelength", "Flux"]
+            df.to_csv(f"CHIRON_Spectra/StarSpectra/SpectraData/He_I_6678/{self.star_name}_{self.obs_date}.csv",
                       index=False)
 
         if full_spec:
@@ -182,7 +234,7 @@ class CHIRONSpectrum:
                 print("-->FullSpec directory created, plots will be saved here!")
             total_wavs = []
             blaze_fluxes = []
-            for i in tqdm(range(59), colour='#8e82fe', file=sys.stdout):
+            for i in tqdm(range(59), colour='#8e82fe', file=sys.stdout, desc=f"Blaze Correction for {self.star_name}"):
                 wavs = []
                 fluxes = []
                 for j in range(3200):
@@ -190,9 +242,11 @@ class CHIRONSpectrum:
                     fluxes.append(self.dat[i][j][1])
 
                 if self.star_name == "HR 2142" and self.obs_date == "2024-12-13":
-                    continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, degree=3, sigma_threshold=3)
+                    continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=f"{i + 1}",
+                                                                   degree=3, sigma_threshold=3)
                 else:
-                    continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, degree=5, sigma_threshold=3)
+                    continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=f"{i + 1}",
+                                                                   degree=5, sigma_threshold=3)
                 total_wavs.append(wavs)
                 fluxes = np.array(fluxes)
 
@@ -225,6 +279,7 @@ class CHIRONSpectrum:
             ax.yaxis.get_offset_text().set_size(20)
             fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/FullSpec/fullSpec_{self.star_name}_{self.obs_date}.pdf",
                         bbox_inches="tight", dpi=300)
+            plt.close()
 
             # wavs = pd.Series(total_wavelengths)
             # fluxes = pd.Series(blaze_flux)
@@ -233,7 +288,7 @@ class CHIRONSpectrum:
             # df.to_csv(f"CHIRON_Spectra/StarSpectra/SpectraData/FullSpec/{self.star_name}_{self.obs_date}.csv",
             #           index=False)
 
-    def multi_epoch_spec(self, h_alpha=True, h_beta=True):
+    def multi_epoch_spec(self, h_alpha=True, h_beta=True, he_I_6678=True):
         """
         Plots the multi-epoch H Alpha and Beta orders (orders 37 and 7) for stars with multiple observations
 
@@ -247,7 +302,7 @@ class CHIRONSpectrum:
         if h_alpha:
             csv_files = glob.glob(f"CHIRON_Spectra/StarSpectra/SpectraData/HAlpha/{self.star_name}*.csv")
             if len(csv_files) > 1:
-                chiron_inventory = pd.read_csv("CHIRON_Spectra/StarSpectra/analysisInventory.txt",
+                chiron_inventory = pd.read_csv("CHIRON_Spectra/StarSpectra/CHIRONInventory.txt",
                                               header=None)
                 wavs = []
                 fluxes = []
@@ -260,9 +315,18 @@ class CHIRONSpectrum:
                     wavs.append(np.array(dat["Wavelength"]))
                     fluxes.append(np.array(dat["Flux"]))
 
+                sorted_inds = np.argsort(jds)
+                jds = np.array(jds)[sorted_inds]
+                wavs = np.array(wavs)[sorted_inds]
+                fluxes = np.array(fluxes)[sorted_inds]
+
                 plt.rcParams['font.family'] = 'Geneva'
                 fig, ax = plt.subplots(figsize=(20, 10))
-                colors = ["k", "r"]
+                # colors = ["k", "r"]
+                cmap = cm.roma  # or cm.roma, cm.lajolla, etc.
+                N = len(wavs)  # Number of colors (e.g., for 10 lines)
+                colors = [cmap(i / N) for i in range(N)]
+                # breakpoint()
                 for i in range(len(wavs)):
                     ax.plot(wavs[i], fluxes[i], c=colors[i], label=f"HJD={jds[i]:.3f}")
                 ax.set_title(fr'Multi-epoch {self.star_name} H$\alpha$', fontsize=24)
@@ -273,15 +337,17 @@ class CHIRONSpectrum:
                 ax.tick_params(axis='x', which='major', labelsize=20)
                 ax.tick_params(axis='both', which='major', length=10, width=1)
                 ax.yaxis.get_offset_text().set_size(20)
+                ax.set_xlim(6550, 6580)
                 ax.legend(loc="upper right", fontsize=18)
                 fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/Multi_Epoch/HAlpha/ME_HAlpha_{self.star_name}.pdf",
                             bbox_inches="tight", dpi=300)
+                plt.close()
 
 
         if h_beta:
             csv_files = glob.glob(f"CHIRON_Spectra/StarSpectra/SpectraData/HBeta/{self.star_name}*.csv")
             if len(csv_files) > 1:
-                chiron_inventory = pd.read_csv("CHIRON_Spectra/StarSpectra/analysisInventory.txt",
+                chiron_inventory = pd.read_csv("CHIRON_Spectra/StarSpectra/CHIRONInventory.txt",
                                               header=None)
                 wavs = []
                 fluxes = []
@@ -294,9 +360,17 @@ class CHIRONSpectrum:
                     wavs.append(np.array(dat["Wavelength"]))
                     fluxes.append(np.array(dat["Flux"]))
 
+                sorted_inds = np.argsort(jds)
+                jds = np.array(jds)[sorted_inds]
+                wavs = np.array(wavs)[sorted_inds]
+                fluxes = np.array(fluxes)[sorted_inds]
+
                 plt.rcParams['font.family'] = 'Geneva'
                 fig, ax = plt.subplots(figsize=(20, 10))
-                colors = ["k", "r"]
+                # colors = ["k", "r"]
+                cmap = cm.devon  # or cm.roma, cm.lajolla, etc.
+                N = len(wavs)  # Number of colors (e.g., for 10 lines)
+                colors = [cmap(i / N) for i in range(N)]
                 for i in range(len(wavs)):
                     ax.plot(wavs[i], fluxes[i], c=colors[i], label=f"HJD={jds[i]:.3f}")
                 ax.set_title(fr'Multi-epoch {self.star_name} H$\beta$', fontsize=24)
@@ -310,6 +384,49 @@ class CHIRONSpectrum:
                 ax.legend(loc="upper right", fontsize=18)
                 fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/Multi_Epoch/HBeta/ME_HBeta_{self.star_name}.pdf",
                             bbox_inches="tight", dpi=300)
+                plt.close()
+
+        if he_I_6678:
+            csv_files = glob.glob(f"CHIRON_Spectra/StarSpectra/SpectraData/he_I_6678/{self.star_name}*.csv")
+            if len(csv_files) > 1:
+                chiron_inventory = pd.read_csv("CHIRON_Spectra/StarSpectra/CHIRONInventory.txt",
+                                              header=None)
+                wavs = []
+                fluxes = []
+                jds = []
+                for f in csv_files:
+                    ind = np.where((chiron_inventory[2] == f.split("/")[4].split("_")[1].split(".")[0]) &
+                                   (chiron_inventory[0] == f.split("/")[4].split("_")[0]))[0]
+                    jds.append(np.array(chiron_inventory[1][ind])[0])
+                    dat = pd.read_csv(f)
+                    wavs.append(np.array(dat["Wavelength"]))
+                    fluxes.append(np.array(dat["Flux"]))
+
+                sorted_inds = np.argsort(jds)
+                jds = np.array(jds)[sorted_inds]
+                wavs = np.array(wavs)[sorted_inds]
+                fluxes = np.array(fluxes)[sorted_inds]
+
+                plt.rcParams['font.family'] = 'Geneva'
+                fig, ax = plt.subplots(figsize=(20, 10))
+                # colors = ["k", "r"]
+                cmap = cm.devon  # or cm.roma, cm.lajolla, etc.
+                N = len(wavs)  # Number of colors (e.g., for 10 lines)
+                colors = [cmap(i / N) for i in range(N)]
+                for i in range(len(wavs)):
+                    ax.plot(wavs[i], fluxes[i], c=colors[i], label=f"HJD={jds[i]:.3f}")
+                ax.set_title(fr'Multi-epoch {self.star_name} He I $\lambda$6678', fontsize=24)
+                ax.set_xlabel("Wavelength [Å]", fontsize=22)
+                ax.set_ylabel("Normalized Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=22)
+                ax.tick_params(axis='both', which='both', direction='in', top=True, right=True)
+                ax.tick_params(axis='y', which='major', labelsize=20)
+                ax.tick_params(axis='x', which='major', labelsize=20)
+                ax.tick_params(axis='both', which='major', length=10, width=1)
+                ax.yaxis.get_offset_text().set_size(20)
+                ax.legend(loc="upper right", fontsize=18)
+                fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/Multi_Epoch/he_I_6678/ME_he_I_6678_{self.star_name}.pdf",
+                            bbox_inches="tight", dpi=300)
+                plt.close()
 
     def radial_velocity(self, print_rad_vel=False):
         """
@@ -395,6 +512,7 @@ class CHIRONSpectrum:
                 color="k", fontsize=18, transform=ax.transAxes)
         fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/RV_HAlpha/RV_Fit_{self.star_name}_{self.obs_date}.pdf",
                     bbox_inches="tight", dpi=300)
+        plt.close()
 
         if not os.path.exists("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt"):
             with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt", "w") as file:
@@ -435,11 +553,14 @@ class CHIRONSpectrum:
 
         v_bis, v_grid, ccf = shafter_bisector_velocity(wavs, fluxes, sep=10, sigma=5)
 
-        # rad_vel_bc_corrected = v_bis - self.bc_corr/1000
+        rad_vel_bc_corrected = v_bis - self.bc_corr/1000
         if print_rad_vel:
-            print(f"Radial Velocity: \033[92m{v_bis:.3f} km/s\033[0m")
+            print(f"Radial Velocity: \033[92m{rad_vel_bc_corrected:.3f} km/s\033[0m")
 
-        plot_ind = np.where((np.array(fluxes) - 1) > 0.25 * max(np.array(fluxes) - 1))[0]
+        plot_ind = np.where((((np.array(wavs) - 6562.8) / 6562.8) * 3e5 > -500) &
+                            (((np.array(wavs) - 6562.8) / 6562.8) * 3e5 < 500) &
+                            ((np.array(fluxes) - 1) > 0.25 * max(np.array(fluxes) - 1)))[0]
+        # plot_ind = np.where((np.array(fluxes[plot_ind1]) - 1) > 0.25 * max(np.array(fluxes[plot_ind1]) - 1))[0]
 
         fig, ax = plt.subplots(figsize=(20, 10))
         ax.plot(((np.array(wavs) - 6562.8) / 6562.8) * 3e5, np.array(fluxes) - 1,
@@ -461,17 +582,29 @@ class CHIRONSpectrum:
         # ax.legend(loc="upper right", fontsize=22)
         fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/RV_HAlpha_Bisector/RV_{self.star_name}_{self.obs_date}.pdf",
                     bbox_inches="tight", dpi=300)
+        plt.close()
 
         if not os.path.exists("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt"):
             with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "w") as file:
-                file.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{v_bis:.3f}\n")
+                file.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{rad_vel_bc_corrected:.3f}\n")
         else:
             with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "r") as f:
                 jds = f.read().splitlines()
 
             if not any(str(self.obs_jd) in line for line in jds):
                 with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "a") as f:
-                    f.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{v_bis:.3f}\n")
+                    f.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{rad_vel_bc_corrected:.3f}\n")
+
+        if not os.path.exists(f"CHIRON_Spectra/StarSpectra/RV_Measurements/{self.star_name}_RV.txt"):
+            with open(f"CHIRON_Spectra/StarSpectra/RV_Measurements/{self.star_name}_RV.txt", "w") as file:
+                file.write(f"{self.obs_jd},{rad_vel_bc_corrected:.3f}\n")
+        else:
+            with open(f"CHIRON_Spectra/StarSpectra/RV_Measurements/{self.star_name}_RV.txt", "r") as f:
+                jds = f.read().splitlines()
+
+            if not any(str(self.obs_jd) in line for line in jds):
+                with open(f"CHIRON_Spectra/StarSpectra/RV_Measurements/{self.star_name}_RV.txt", "a") as f:
+                    f.write(f"{self.obs_jd},{rad_vel_bc_corrected:.3f}\n")
 
     @staticmethod
     def exp_time(v_mag_array, star_name_array):
@@ -627,6 +760,7 @@ class ARCESSpectrum:
             ax.yaxis.get_offset_text().set_size(20)
             fig.savefig(f"APO_Spectra/SpectrumPlots/HAlpha/{self.star_name}_{self.obs_date}.pdf",
                         bbox_inches="tight", dpi=300)
+            plt.close()
 
             wavs = pd.Series(w)
             fluxes = pd.Series(self.dat)
@@ -653,6 +787,7 @@ class ARCESSpectrum:
             ax.yaxis.get_offset_text().set_size(20)
             fig.savefig(f"APO_Spectra/SpectrumPlots/HBeta/{self.star_name}_{self.obs_date}.pdf",
                         bbox_inches="tight", dpi=300)
+            plt.close()
 
             if not h_alpha:
                 wavs = pd.Series(w)
@@ -686,6 +821,7 @@ class ARCESSpectrum:
             ax.yaxis.get_offset_text().set_size(20)
             fig.savefig(f"APO_Spectra/SpectrumPlots/FullSpec/{self.star_name}_{self.obs_date}.pdf",
                         bbox_inches="tight", dpi=300)
+            plt.close()
 
 
     def multi_epoch_spec(self, h_alpha=True, h_beta=True):
@@ -734,6 +870,7 @@ class ARCESSpectrum:
                 ax.set_ylim(0.5, np.max(fluxes[1][mask]) + 0.25)
                 fig.savefig(f"APO_Spectra/SpectrumPlots/Multi_Epoch/HAlpha/ME_HAlpha_{self.star_name}.pdf",
                             bbox_inches="tight", dpi=300)
+                plt.close()
 
         if h_beta:
             csv_files = glob.glob(f"APO_Spectra/SpectraData/{self.star_name}*.csv")
@@ -769,6 +906,7 @@ class ARCESSpectrum:
                 ax.set_ylim(0.5, np.max(fluxes[1][mask]) + 0.25)
                 fig.savefig(f"APO_Spectra/SpectrumPlots/Multi_Epoch/HBeta/ME_HBeta_{self.star_name}.pdf",
                             bbox_inches="tight", dpi=300)
+                plt.close()
 
     def radial_velocity_bisector(self, print_rad_vel=False):
         """
@@ -824,6 +962,7 @@ class ARCESSpectrum:
         # ax.legend(loc="upper right", fontsize=22)
         fig.savefig(f"APO_Spectra/SpectrumPlots/RV_HAlpha_Bisector/RV_{self.star_name}_{self.obs_date}.pdf",
                     bbox_inches="tight", dpi=300)
+        plt.close()
 
         if not os.path.exists("APO_Spectra/APOInventoryRV_Bisector.txt"):
             with open("APO_Spectra/APOInventoryRV_Bisector.txt", "w") as file:
@@ -831,7 +970,6 @@ class ARCESSpectrum:
         else:
             with open("APO_Spectra/APOInventoryRV_Bisector.txt", "r") as f:
                 jds = f.read().splitlines()
-                print(jds)
 
             if not any(str(self.obs_jd) in line for line in jds):
                 with open("APO_Spectra/APOInventoryRV_Bisector.txt", "a") as f:
@@ -905,6 +1043,7 @@ class HSTSpectrum:
         ax.yaxis.get_offset_text().set_size(20)
         ax.set_title(f"{self.star_name} {self.obs_date}", fontsize=24)
         fig.savefig(f"HST_Spectra/Plots/{self.star_name}_{self.obs_date}.pdf", bbox_inches="tight", dpi=300)
+        plt.close()
 
         if full_spec:
             if os.path.exists("HST_Spectra/Plots/FullSpec"):
@@ -928,6 +1067,7 @@ class HSTSpectrum:
             ax.set_title(f"{self.star_name} {self.obs_date}", fontsize=24)
             fig.savefig(f"HST_Spectra/Plots/FullSpec/{self.star_name}_{self.obs_date}.pdf", bbox_inches="tight",
                         dpi=300)
+            plt.close()
 
 
 def sky_plot(interactive=False):
@@ -986,7 +1126,25 @@ def sky_plot(interactive=False):
 
     else:
         fig.savefig("skyplot.pdf", bbox_inches="tight", dpi=300)
+        plt.close()
 
+
+def rv_plotter(filename):
+    dat = pd.read_csv(filename, header=None)
+    star_name = filename.split("/")[3].split("_")[0]
+    jd = dat[0]
+    rv = dat[1]
+
+    fig, ax = plt.subplots(figsize=(20, 10))
+    ax.scatter(jd-2460000, rv, s=80, color="r")
+    ax.set_xlabel("JD$-2460000$ [days]", fontsize=22)
+    ax.set_ylabel("Radial Velocity [km s$^{-1}$]", fontsize=22)
+    ax.tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
+                   width=1)
+    ax.set_title(f"{star_name} Radial Velocity", fontsize=24)
+    fig.savefig(f"CHIRON_Spectra/StarSpectra/RV_Measurements/RV_{star_name}.pdf", bbox_inches="tight",
+                dpi=300)
+    plt.close()
 
 def apo_main():
     apo_fits_files = list_fits_files("APO_Spectra/FitsFiles")
@@ -1007,21 +1165,38 @@ def hst_main():
 
 def chiron_main():
     chiron_fits_files = list_fits_files("CHIRON_Spectra/StarSpectra")
+    # chiron_fits_files = list_fits_files("CHIRON_Spectra/Archival/HD113120")
     for file in chiron_fits_files:
         star = CHIRONSpectrum(file)
         star.blaze_corrected_plotter(full_spec=True)
         star.multi_epoch_spec()
-        star.radial_velocity()
+        # star.radial_velocity()
         star.radial_velocity_bisector()
+
+    # rv_files = glob.glob("CHIRON_Spectra/StarSpectra/RV_Measurements/*_RV.txt", recursive=True)
+    # for file in rv_files:
+    #     with open(file, "r") as f:
+    #         jds = sorted(f.read().splitlines())
+    #     with open(file, "w") as f:
+    #         f.write("\n".join(jds))
+    #     rv_plotter(file)
     print("\a")
 
+def chir_main(file_name):
+    star = CHIRONSpectrum(file_name)
+    star.blaze_corrected_plotter(full_spec=True)
+    star.multi_epoch_spec()
+    # star.radial_velocity()
+    star.radial_velocity_bisector()
 
 if __name__ == '__main__':
-    pass
+    # pass
+    t1 = time.perf_counter()
+    chiron_fits_files = list_fits_files("CHIRON_Spectra/StarSpectra")
     # apo_main()
     # hst_main()
     # chiron_main()
-    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt", "r") as f:
+    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "r") as f:
         #Read the names
         # star_names = sorted(f.read().splitlines())
     #
@@ -1034,7 +1209,14 @@ if __name__ == '__main__':
     # #     modified_names.append(name)
     #
     # Write back to the file
-    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt", "w") as file:
+    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "w") as file:
     #     file.write("\n".join(star_names))
 
     # sky_plot()
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        executor.map(chir_main, chiron_fits_files)
+    t2 = time.perf_counter()
+    print(f'Finished in \033[94m{round(t2 - t1, 2)}\033[0m second(s)')
+
+# Finished in 166.4 second(s) - w/o multiproc
+# Finished in 42.56 second(s) - w/ multiproc

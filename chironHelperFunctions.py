@@ -34,7 +34,8 @@ def list_fits_files(directory):
 
 
 # Define the recursive sigma clipping function
-def recursive_sigma_clipping(wavelengths, fluxes, degree=5, sigma_threshold=3, max_iterations=10):
+def recursive_sigma_clipping(wavelengths, fluxes, star_name, order, degree=5, sigma_threshold=3, max_iterations=10,
+                             blaze_plots=False):
     """
     Perform a recursive sigma clipping algorithm to fit the continuum of spectral data using scipy curve_fit.
     This pipeline follows the steps laid out by §3.3 of Paredes, L. A., et al. 2021, AJ, 162, 176 and assumes slicer mode
@@ -42,9 +43,12 @@ def recursive_sigma_clipping(wavelengths, fluxes, degree=5, sigma_threshold=3, m
     Parameters:
         wavelengths (array-like): Array of wavelengths.
         fluxes (array-like): Array of flux values corresponding to the wavelengths.
+        star_name (string): Name of star
+        order (int or str): Echelle order number for blaze plotting
         degree (int): Degree of the polynomial used for fitting the continuum.
         sigma_threshold (float): Number of standard deviations to use as the clipping threshold.
         max_iterations (int): Maximum number of iterations to perform.
+        blaze_plots (bool): Default=False, plots the blaze function fits for this spectrum
 
     Returns:
         tuple: (continuum_fit, mask), where:
@@ -79,13 +83,35 @@ def recursive_sigma_clipping(wavelengths, fluxes, degree=5, sigma_threshold=3, m
 
         # If the mask doesn't change, we have converged
         if np.array_equal(mask, new_mask):
-            # print("\033[92mSigma clipping algorithm converged!\033[0m")
             break
 
         mask = new_mask
 
     # Compute the final continuum fit
     continuum_fit = polynomial(wavelengths_norm, *popt)
+
+    if blaze_plots:
+        if os.path.exists(f"CHIRON_Spectra/StarSpectra/Plots/Blaze_Function/{star_name}"):
+            pass
+        else:
+            os.mkdir(f"CHIRON_Spectra/StarSpectra/Plots/Blaze_Function/{star_name}")
+            print(f"-->CHIRON_Spectra/StarSpectra/Plots/Blaze_Function/{star_name} directory created, blaze function "
+                  f"plots will be saved here!")
+
+        plt.rcParams['font.family'] = 'Geneva'
+        fig, ax = plt.subplots(figsize=(20, 10))
+        ax.plot(wavelengths, fluxes, c='k')
+        ax.plot(wavelengths, continuum_fit, c="red", alpha=0.7, linewidth=5)
+        ax.set_title(f'Blaze Function', fontsize=24)
+        ax.set_xlabel("Wavelength [Å]", fontsize=22)
+        ax.set_ylabel("Un-Normalized Flux", fontsize=22)
+        ax.tick_params(axis='both', which='both', direction='in', top=True, right=True)
+        ax.tick_params(axis='y', which='major', labelsize=20)
+        ax.tick_params(axis='x', which='major', labelsize=20)
+        ax.tick_params(axis='both', which='major', length=10, width=1)
+        ax.yaxis.get_offset_text().set_size(20)
+        fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/Blaze_Function/{star_name}/{star_name}_{order}.pdf",
+                    bbox_inches="tight", dpi=300)
 
     return continuum_fit, mask
 
