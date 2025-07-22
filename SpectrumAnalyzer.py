@@ -27,6 +27,8 @@ import concurrent.futures
 from chironHelperFunctions import *
 from hstHelperFunctions import *
 
+__version__ = '1.0 | 2025/07/21' # First version with number and new name :)
+
 #TODO: Add logging capabilities to each of the classes
 
 class CHIRONSpectrum:
@@ -1163,15 +1165,12 @@ def hst_main():
     print("\a")
 
 
-def chiron_main():
-    chiron_fits_files = list_fits_files("CHIRON_Spectra/StarSpectra")
-    # chiron_fits_files = list_fits_files("CHIRON_Spectra/Archival/HD113120")
-    for file in chiron_fits_files:
-        star = CHIRONSpectrum(file)
-        star.blaze_corrected_plotter(full_spec=True)
-        star.multi_epoch_spec()
-        # star.radial_velocity()
-        star.radial_velocity_bisector()
+def chiron_main(file_name):
+    star = CHIRONSpectrum(file_name)
+    star.blaze_corrected_plotter(full_spec=True)
+    star.multi_epoch_spec()
+    # star.radial_velocity()
+    star.radial_velocity_bisector()
 
     # rv_files = glob.glob("CHIRON_Spectra/StarSpectra/RV_Measurements/*_RV.txt", recursive=True)
     # for file in rv_files:
@@ -1182,15 +1181,15 @@ def chiron_main():
     #     rv_plotter(file)
     print("\a")
 
-def chir_main(file_name):
-    star = CHIRONSpectrum(file_name)
-    star.blaze_corrected_plotter(full_spec=True)
-    star.multi_epoch_spec()
-    # star.radial_velocity()
-    star.radial_velocity_bisector()
-
 if __name__ == '__main__':
     # pass
+    print("""
+            ########################### This is SpInBeStAC ###########################
+            #   [Sp]ectroscopic and [In]terferometric [Be] [St]ar [A]nalysis [C]ode  #
+            #               https://github.com/akshat-chaturvedi/BeStars             #    
+            ##########################################################################
+            """)
+    print('Version:', __version__)
     t1 = time.perf_counter()
     chiron_fits_files = list_fits_files("CHIRON_Spectra/StarSpectra")
     # apo_main()
@@ -1214,7 +1213,7 @@ if __name__ == '__main__':
 
     # sky_plot()
     with concurrent.futures.ProcessPoolExecutor() as executor:
-        executor.map(chir_main, chiron_fits_files)
+        executor.map(chiron_main, chiron_fits_files)
     t2 = time.perf_counter()
     print(f'Finished in \033[94m{round(t2 - t1, 2)}\033[0m second(s)')
 

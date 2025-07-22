@@ -211,45 +211,51 @@ def shafter_bisector_velocity(wavelengths, fluxes, line_center=6562.8, sep=10, s
 
 
 if __name__ == '__main__':
-
-    infile = "CHIRON_Spectra/241120_planid_1034/achi241120.1157.fits"
-
-    with fits.open(infile) as hdul:
-        dat = hdul[0].data
-        # print(dir(hdul[0].data))
-
-
-    totalWavelengths = []
-    blazeFlux = []
-
-    for i in tqdm(range(59)):
-        wavs = []
-        fluxes = []
-        for j in range(3200):
-            wavs.append(dat[i][j][0])
-            fluxes.append(dat[i][j][1])
-
-        continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, degree=5, sigma_threshold=3)
-        totalWavelengths.append(wavs)
-        wavelengths = np.array(wavs)
-        fluxes = np.array(fluxes)
-
-        blazeFlux.append(fluxes/continuum_fit)
-
-    totalWavelengths = np.array(totalWavelengths).flatten()
-    blazeFlux = np.array(blazeFlux).flatten()
-
-    plt.rcParams['font.family'] = 'Geneva'
-    fig, ax = plt.subplots(figsize=(20,10))
-    # ax.plot(wavelengths, fluxes)
-    ax.plot(totalWavelengths, blazeFlux, 'k', label='Original Data')
-    # ax.plot(wavelengths[mask], fluxes[mask], 'b.', label='Retained Data', alpha=0.8)
-    # ax.plot(wavelengths, continuum_fit, 'r-', label='Fitted Continuum', linewidth=2)
-    fig.savefig("trial_1.pdf", bbox_inches="tight", dpi=300)
-
+    print("""
+        ========================== This is ACHILLES ============================
+          [A]kshat's [CHI]RON [L]ogistics [L]ayout for [E]chelle [S]pectroscopy
+                    https://github.com/akshat-chaturvedi/BeStars
+        ========================================================================
+        """)
+    print(' version:', __version__)
+    # infile = "CHIRON_Spectra/241120_planid_1034/achi241120.1157.fits"
+    #
+    # with fits.open(infile) as hdul:
+    #     dat = hdul[0].data
+    #     # print(dir(hdul[0].data))
+    #
+    #
+    # totalWavelengths = []
+    # blazeFlux = []
+    #
+    # for i in tqdm(range(59)):
+    #     wavs = []
+    #     fluxes = []
+    #     for j in range(3200):
+    #         wavs.append(dat[i][j][0])
+    #         fluxes.append(dat[i][j][1])
+    #
+    #     continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, degree=5, sigma_threshold=3)
+    #     totalWavelengths.append(wavs)
+    #     wavelengths = np.array(wavs)
+    #     fluxes = np.array(fluxes)
+    #
+    #     blazeFlux.append(fluxes/continuum_fit)
+    #
+    # totalWavelengths = np.array(totalWavelengths).flatten()
+    # blazeFlux = np.array(blazeFlux).flatten()
+    #
+    # plt.rcParams['font.family'] = 'Geneva'
     # fig, ax = plt.subplots(figsize=(20,10))
     # # ax.plot(wavelengths, fluxes)
-    # ax.plot(wavelengths, fluxes/continuum_fit, 'k', label='Original Data')
-    # fig.savefig("trial.pdf", bbox_inches="tight", dpi=300)
+    # ax.plot(totalWavelengths, blazeFlux, 'k', label='Original Data')
+    # # ax.plot(wavelengths[mask], fluxes[mask], 'b.', label='Retained Data', alpha=0.8)
+    # # ax.plot(wavelengths, continuum_fit, 'r-', label='Fitted Continuum', linewidth=2)
+    # fig.savefig("trial_1.pdf", bbox_inches="tight", dpi=300)
+    #
+    # # fig, ax = plt.subplots(figsize=(20,10))
+    # # # ax.plot(wavelengths, fluxes)
+    # # ax.plot(wavelengths, fluxes/continuum_fit, 'k', label='Original Data')
+    # # fig.savefig("trial.pdf", bbox_inches="tight", dpi=300)
 
 
