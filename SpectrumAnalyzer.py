@@ -71,13 +71,20 @@ def chiron_main(file_name):
 
 if __name__ == '__main__':
     # pass
-    print("""
-            ############################ This is SpInBeASt #############################
-               [Sp]ectroscopic and [In]terferometric [Be]-star [A]nalysis [St]ructure         
+    RED = '\033[91m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    MAGENTA = '\033[95m'
+    RESET = '\033[0m'
+
+    print(f"""
+            ############################ This is {RED}Sp{RESET}{GREEN}In{RESET}{YELLOW}Be{RESET}{BLUE}A{RESET}{MAGENTA}St{RESET} #############################
+               [{RED}Sp{RESET}]ectroscopic and [{GREEN}In{RESET}]terferometric [{YELLOW}Be{RESET}]-star [{BLUE}A{RESET}]nalysis [{MAGENTA}St{RESET}]ructure
+                                     Version: {__version__}                           
                            https://github.com/akshat-chaturvedi/SpInBeASt                
             ############################################################################
-            """)
-    print('Version:', __version__)
+        """)
     t1 = time.perf_counter()
     chiron_fits_files = list_fits_files("CHIRON_Spectra/StarSpectra")
     # apo_main()
