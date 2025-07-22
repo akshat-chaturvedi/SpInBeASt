@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from Sandbox.angleAnnotator import AngleAnnotation as AA
-from random import uniform
 from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
 
@@ -20,7 +19,7 @@ def pa(ra, err_ra, dec, err_dec):
     """
     a = np.rad2deg(np.arctan2(dec, ra))
     tot_err = a * (err_ra / ra + err_dec / dec)
-    pos_angle_err = (tot_err / (1+a**2))
+    pos_angle_err = abs((tot_err / (1+a**2)))
     if (ra > 0) and (dec > 0):
         pos_angle = 90-a
         return pos_angle, pos_angle_err
@@ -31,6 +30,13 @@ def pa(ra, err_ra, dec, err_dec):
         else:
             pos_angle = 360-abs(a-90)
             return pos_angle, pos_angle_err
+
+
+def comp_sep(ra, err_ra, dec, err_dec):
+    separation = np.sqrt(ra**2 + dec**2)
+    err_sep = np.sqrt((err_ra**2 * ra**2/(ra**2 + dec**2)) + (err_dec**2 * dec**2/(ra**2 + dec**2)))
+    return  separation, err_sep
+
 
 def confidence_ellipse(x, y, axs, n_std=3.0, cov=None, face_color='none', **kwargs):
     """
