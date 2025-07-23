@@ -7,10 +7,12 @@ import concurrent.futures
 from chiron import *
 from arces import *
 from hst import *
+from chara import *
 import logging
 
-# __version__ = '1.0 | 2025/07/21' # First version with number and new name :)
-__version__ = '2.0 | 2025/07/22' # Significant structure updates
+# __version__ = '0.1 | 2025/07/21' # First version with number and new name :)
+#__version__ = '1.0 | 2025/07/22' # Significant structure updates
+__version__ = '1.1 | 2025/07/23' # Added visual orbit analysis code
 
 def apo_main(file_name):
     logging.basicConfig(
@@ -67,7 +69,6 @@ def chiron_main(file_name):
     #     with open(file, "w") as f:
     #         f.write("\n".join(jds))
     #     rv_plotter(file)
-    print("\a")
 
 if __name__ == '__main__':
     # pass
@@ -110,8 +111,26 @@ if __name__ == '__main__':
     # sky_plot()
     with concurrent.futures.ProcessPoolExecutor() as executor:
         executor.map(chiron_main, chiron_fits_files)
+
+    # files = glob.glob("CHARA/Prepped/HD191610/*28_Cyg*.oifits")
+    # files.append('CHARA/Prepped/HD191610/2025Jul05_HD191610_NFiles01_H_test1split5m_prepped.oifits')
+    # star_names = ['HD191610'] * len(files)
+    # star_diams = [0.214] * len(files)
+    #
+    # with concurrent.futures.ProcessPoolExecutor() as executor:
+    #     executor.map(binary_fit, files, star_names, star_diams)
+
+    # json_files = glob.glob("CHARA/CompanionParams/*HD200310_H.json")
+    # json_files.sort()
+    # companion_data = []
+    # for file in json_files:
+    #     companion_data.append(companion_position(file))
+    #
+    # orbit_plotter(companion_data, "HD200310")
+
     t2 = time.perf_counter()
     print(f'Finished in \033[94m{round(t2 - t1, 2)}\033[0m second(s)')
+    print("\a")
 
 # Finished in 166.4 second(s) - w/o multiproc
 # Finished in 42.56 second(s) - w/ multiproc
