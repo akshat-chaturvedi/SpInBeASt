@@ -12,7 +12,8 @@ import logging
 
 # __version__ = '0.1 | 2025/07/21' # First version with number and new name :)
 #__version__ = '1.0 | 2025/07/22' # Significant structure updates
-__version__ = '1.1 | 2025/07/23' # Added visual orbit analysis code
+# __version__ = '1.1 | 2025/07/23' # Added visual orbit analysis code
+__version__ = '1.2 | 2025/07/25' # Cleaning up file structure, visual changes to plots, added stellar props dictionary
 
 def apo_main(file_name):
     logging.basicConfig(
@@ -120,13 +121,14 @@ if __name__ == '__main__':
     # with concurrent.futures.ProcessPoolExecutor() as executor:
     #     executor.map(binary_fit, files, star_names, star_diams)
 
-    # json_files = glob.glob("CHARA/CompanionParams/*HD200310_H.json")
+    # json_files = glob.glob("CHARA/CompanionParams/*HD191610_H.json")
     # json_files.sort()
     # companion_data = []
     # for file in json_files:
     #     companion_data.append(companion_position(file))
     #
-    # orbit_plotter(companion_data, "HD200310")
+    # orbit_plotter(companion_data, "HD191610")
+
 
     t2 = time.perf_counter()
     print(f'Finished in \033[94m{round(t2 - t1, 2)}\033[0m second(s)')

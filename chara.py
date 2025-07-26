@@ -10,13 +10,32 @@ from cmcrameri import cm
 import pandas as pd
 from charaHelperFunctions import confidence_ellipse, pa, comp_sep
 import concurrent.futures
+import os
+import re
+from star_props import stellar_properties
 
 YELLOW = '\033[93m'
 GREEN = '\033[92m'
 RESET = '\033[0m'
 
 def binary_fit(filename, star_name, star_diam):
-    band = 'K'  # MIRCX = H; MYSTIC = K
+    logging.basicConfig(
+        filename='BinaryFit.log',
+        encoding='utf-8',
+        format='%(levelname)s (%(asctime)s): %(message)s (Line: %(lineno)d [%(filename)s])',
+        datefmt='%d/%m/%Y %I:%M:%S %p',
+        level=logging.INFO,
+        force=True  # IMPORTANT: Overwrites previous configs, needed in subprocesses
+    )
+
+    if os.path.exists(f"CHARA/Figures/Fit_Figures/{star_name}"):
+        pass
+    else:
+        os.mkdir(f"CHARA/Figures/Fit_Figures/{star_name}")
+
+        print(f"{GREEN}-->CHARA/Figures/Fit_Figures/{star_name} directory created, plots will be saved here!{RESET}")
+
+    band = 'H'  # MIRCX = H; MYSTIC = K
     oi = pmoired.OI(filename)
     obs_date = Time(np.mean(oi.data[0]['MJD']), format='mjd').fits.split("T")[0]
     obs_time = Time(np.mean(oi.data[0]['MJD']), format='mjd').value
@@ -48,11 +67,11 @@ def binary_fit(filename, star_name, star_diam):
                           ('np.sqrt(c,x**2+c,y**2)', '>', step / 2)])
 
     oi.showGrid(interpolate=True, tight=True)
-    plt.savefig(f"CHARA/Figures/{obs_date}_{star_name}_{band}_figure_1.pdf", dpi=300, bbox_inches='tight')
+    plt.savefig(f"CHARA/Figures/Fit_Figures/{star_name}/{obs_date}_{star_name}_{band}_figure_1.pdf", dpi=300, bbox_inches='tight')
     plt.close()
 
     oi.showGrid(interpolate=True, tight=True, significance=bestUD)
-    plt.savefig(f"CHARA/Figures/{obs_date}_{star_name}_{band}_figure_2.pdf", dpi=300, bbox_inches='tight')
+    plt.savefig(f"CHARA/Figures/Fit_Figures/{star_name}/{obs_date}_{star_name}_{band}_figure_2.pdf", dpi=300, bbox_inches='tight')
     plt.close()
 
     print(f"{GREEN}={RESET}" * 100 + "\n" +
@@ -63,12 +82,12 @@ def binary_fit(filename, star_name, star_diam):
     best_fit_cov_mat = oi.bestfit['covd']
 
     oi.show()
-    plt.savefig(f"CHARA/Figures/{obs_date}_{star_name}_{band}_figure_3.pdf", dpi=300, bbox_inches='tight')
+    plt.savefig(f"CHARA/Figures/Fit_Figures/{star_name}/{obs_date}_{star_name}_{band}_figure_3.pdf", dpi=300, bbox_inches='tight')
     plt.close()
 
     oi.bootstrapFit(300)
     oi.showBootstrap()
-    plt.savefig(f"CHARA/Figures/{obs_date}_{star_name}_{band}_figure_4.pdf", dpi=300, bbox_inches='tight')
+    plt.savefig(f"CHARA/Figures/Fit_Figures/{star_name}/{obs_date}_{star_name}_{band}_figure_4.pdf", dpi=300, bbox_inches='tight')
     plt.close()
 
     for index in best_fit_params.keys():
@@ -115,6 +134,18 @@ def companion_position(file_name):
     return ra, err_ra, dec, err_dec, cov_mat, obs_date, obs_time, combiner
 
 def orbit_plotter(comp_data, star_name):
+    dist = stellar_properties[f"{star_name}"]["distance"]
+
+    mas_to_au = dist * 1e-3
+
+    def ra_mas_to_au(x): return x * mas_to_au
+
+    def ra_au_to_mas(x): return x / mas_to_au
+
+    def dec_mas_to_au(y): return y * mas_to_au
+
+    def dec_au_to_mas(y): return y / mas_to_au
+
     plt.rcParams['font.family'] = 'Geneva'
     fig, ax = plt.subplots(figsize=(7, 7))
     ax.scatter(0, 0, color="k", marker="+", s=200)
@@ -129,13 +160,15 @@ def orbit_plotter(comp_data, star_name):
     separations = []
     separation_errs = []
     obs_times = []
+    phys_seps_ra = []
+    phys_seps_dec = []
     for i, dat in enumerate(comp_data):
         pos_angles = pa(dat[0], dat[1], dat[2], dat[3])
         seps = comp_sep(dat[0], dat[1], dat[2], dat[3])
         pas.append(pa(dat[0], dat[1], dat[2], dat[3])[0])
         pa_errs.append(pa(dat[0], dat[1], dat[2], dat[3])[1])
-        separations.append(comp_sep(dat[0], dat[1], dat[2], dat[3])[0])
-        separation_errs.append(comp_sep(dat[0], dat[1], dat[2], dat[3])[1])
+        separations.append(seps[0])
+        separation_errs.append(seps[1])
         obs_times.append(dat[6])
 
         print(" "*18 + f"{dat[5]}\t" + f"{dat[6]:.4f}\t" +f"PA = {pos_angles[0]:.3f} ± {pos_angles[1]:.3e}\t" +
@@ -147,16 +180,41 @@ def orbit_plotter(comp_data, star_name):
     ax.set_xlim(-max(separations)-0.2,max(separations)+0.2)
     ax.set_ylim(-max(separations)-0.2,max(separations)+0.2)
     ax.xaxis.set_inverted(True)
-    ax.set_title(fr'{star_name} Interferometric Orbit', fontsize=20)
-    ax.set_xlabel(r"E $\leftarrow\, \Delta \alpha$ (mas)", fontsize=18)
-    ax.set_ylabel(r'$\Delta \delta\, \rightarrow$ N (mas)', fontsize=18)
-    ax.tick_params(axis='both', which='both', direction='in', top=True, right=True)
+    # ax.set_title(fr'{star_name} Interferometric Orbit', fontsize=20)
+    ax.text(
+        0.05, 0.05,  # (x, y) in axes coordinates (1.0 is right/top)
+        f"{re.sub(r"([A-Za-z]+)(\d+)", r"\1 \2", star_name)}",  # Text string
+        ha='left', va='bottom',  # Horizontal and vertical alignment
+        transform=ax.transAxes,  # Use axes coordinates
+        fontsize=16,
+        fontweight='bold',
+        bbox=dict(
+            facecolor='white',  # Box background color
+            edgecolor='black',  # Box border color
+            boxstyle='square,pad=0.3',  # Rounded box with padding
+            alpha=0.9  # Slight transparency
+        )
+    )
+    ax.set_xlabel(r"E $\leftarrow\, \Delta \alpha$ [mas]", fontsize=18)
+    ax.set_ylabel(r'$\Delta \delta\, \rightarrow$ N [mas]', fontsize=18)
+
+    secax_x = ax.secondary_xaxis("top", functions=(ra_mas_to_au, ra_au_to_mas))
+    secax_x.set_xlabel(r"E $\leftarrow\, \Delta \alpha$ [AU]", fontsize=18)
+    secax_x.tick_params(labelsize=16, which='major')
+    secax_x.tick_params(axis='both', which='both', direction='in', length=8, width=1)
+
+    secax_y = ax.secondary_yaxis("right", functions=(dec_mas_to_au, dec_au_to_mas))
+    secax_y.set_ylabel(r'$\Delta \delta\, \rightarrow$ N [AU]', fontsize=18)
+    secax_y.tick_params(labelsize=16, which='major')
+    secax_y.tick_params(axis='both', which='both', direction='in', length=8, width=1)
+
+    ax.tick_params(axis='both', which='both', direction='in')
     ax.tick_params(axis='y', which='major', labelsize=16)
     ax.tick_params(axis='x', which='major', labelsize=16)
     ax.tick_params(axis='both', which='major', length=8, width=1)
     ax.yaxis.get_offset_text().set_size(20)
     ax.legend(fontsize=10, ncol=2, loc="upper center")
-    fig.savefig(f"CHARA/Figures/Visual_Orbit_{star_name}_1.pdf", bbox_inches="tight", dpi=300)
+    fig.savefig(f"CHARA/Figures/Visual_Orbits/Visual_Orbit_{star_name}.pdf", bbox_inches="tight", dpi=300)
     plt.close()
 
     pas = pd.Series(pas)
@@ -191,6 +249,9 @@ if __name__ == '__main__':
     # #     print(file)
     # #     binary_fit(f'{file}',
     # #                'HD200310')
+    # binary_fit("CHARA/Prepped/HD200310/2025Jul05_HD200310_NFiles01_H_test1split5m_prepped.oifits",
+    #            'HD200310',
+    #            0.122)
     # files = glob.glob("CHARA/Prepped/HD191610/*28_Cyg*.oifits")
     # files.append('CHARA/Prepped/HD191610/2025Jul05_HD191610_NFiles01_H_test1split5m_prepped.oifits')
     # star_names = ['HD191610'] * len(files)

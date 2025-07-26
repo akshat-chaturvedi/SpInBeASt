@@ -567,7 +567,14 @@ class CHIRONSpectrum:
         ax.set_xlim(-500, 500)
         ax.text(0.8, 0.8, fr"{self.star_name} H$\alpha$"
                           f"\nHJD {self.obs_jd:.4f}\nRV = {v_bis:.3f} km/s",
-                color="k", fontsize=18, transform=ax.transAxes)
+                color="k", fontsize=18, transform=ax.transAxes,
+                bbox=dict(
+                    facecolor='white',  # Box background color
+                    edgecolor='black',  # Box border color
+                    boxstyle='square,pad=0.3',  # Rounded box with padding
+                    alpha=0.9  # Slight transparency
+                )
+                )
         # ax.set_title("Cross Correlation Function w/ Gaussian Fit", fontsize=26)
         # ax.legend(loc="upper right", fontsize=22)
         fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/RV_HAlpha_Bisector/RV_{self.star_name}_{self.obs_date}.pdf",
