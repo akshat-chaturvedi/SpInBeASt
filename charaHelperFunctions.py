@@ -33,6 +33,18 @@ def pa(ra, err_ra, dec, err_dec):
 
 
 def comp_sep(ra, err_ra, dec, err_dec):
+    """
+        Get the separation of a binary companion given its ΔRA and ΔDec relative to the primary (centered at (0,0))
+
+        Parameters:
+            ra (float): ΔRA of the companion
+            err_ra (float): error in the ΔRA of the companion
+            dec (float): ΔDec of the companion
+            err_dec (float): error in the ΔDec of the companion
+
+        Returns:
+            The separation of the companion with error
+    """
     separation = np.sqrt(ra**2 + dec**2)
     err_sep = np.sqrt((err_ra**2 * ra**2/(ra**2 + dec**2)) + (err_dec**2 * dec**2/(ra**2 + dec**2)))
     return  separation, err_sep

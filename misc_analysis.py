@@ -7,6 +7,7 @@ from astropy import units as u
 from astropy.visualization import quantity_support
 from astropy.table import Table
 from astropy.io import ascii
+from cmcrameri import cm
 quantity_support()
 
 def sky_plot(interactive=False):
@@ -49,7 +50,7 @@ def sky_plot(interactive=False):
     ax.set_xticks(ticks=np.radians([-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150]),
                labels=['150°', '120°', '90°', '60°', '30°', '0°', '330°', '300°', '270°', '240°', '210°'])
     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.6, zorder=0)
-    scatter = ax.scatter(eq_ra, eq_dec, s=35, zorder=2, c=overall_obs_count, cmap='cmc.roma')
+    scatter = ax.scatter(eq_ra, eq_dec, s=50, zorder=2, c=overall_obs_count, cmap=cm.managua, edgecolors="k")
     ax.tick_params(axis='both', which='major', labelsize=18)
     cbar = fig.colorbar(scatter, orientation='vertical', ticks=np.arange(max(overall_obs_count)+1), pad=0.01)
     cbar.set_label('Number of Observations', fontsize=18)

@@ -204,6 +204,7 @@ class CHIRONSpectrum:
             ax.tick_params(axis='y', which='major', labelsize=20)
             ax.tick_params(axis='x', which='major', labelsize=20)
             ax.tick_params(axis='both', which='major', length=10, width=1)
+            ax.set_xlim(6660, 6700)
             ax.yaxis.get_offset_text().set_size(20)
             fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/He_I_6678/He_I_6678_{self.star_name}_{self.obs_date}.pdf",
                         bbox_inches="tight", dpi=300)

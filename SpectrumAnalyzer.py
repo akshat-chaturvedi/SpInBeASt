@@ -8,12 +8,29 @@ from chiron import *
 from arces import *
 from hst import *
 from chara import *
+from misc_analysis import *
 import logging
 
 # __version__ = '0.1 | 2025/07/21' # First version with number and new name :)
 #__version__ = '1.0 | 2025/07/22' # Significant structure updates
 # __version__ = '1.1 | 2025/07/23' # Added visual orbit analysis code
-__version__ = '1.2 | 2025/07/25' # Cleaning up file structure, visual changes to plots, added stellar props dictionary
+# __version__ = '1.2 | 2025/07/25' # Cleaning up file structure, visual changes to plots, added stellar props dictionary
+__version__ = '1.3 | 2025/08/13' # Added scripts, TLUSTY model generator, and CCF analysis functionality for HST/STIS spectra
+
+RED = '\033[91m'
+GREEN = '\033[92m'
+YELLOW = '\033[93m'
+BLUE = '\033[94m'
+MAGENTA = '\033[95m'
+RESET = '\033[0m'
+
+spin_beast = f"""
+            ############################ This is {RED}Sp{RESET}{GREEN}In{RESET}{YELLOW}Be{RESET}{BLUE}A{RESET}{MAGENTA}St{RESET} #############################
+               [{RED}Sp{RESET}]ectroscopic and [{GREEN}In{RESET}]terferometric [{YELLOW}Be{RESET}]-star [{BLUE}A{RESET}]nalysis [{MAGENTA}St{RESET}]ructure
+                                     Version: {__version__}                           
+                           https://github.com/akshat-chaturvedi/SpInBeASt                
+            ############################################################################
+"""
 
 def apo_main(file_name):
     logging.basicConfig(
@@ -73,22 +90,9 @@ def chiron_main(file_name):
 
 if __name__ == '__main__':
     # pass
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    MAGENTA = '\033[95m'
-    RESET = '\033[0m'
-
-    print(f"""
-            ############################ This is {RED}Sp{RESET}{GREEN}In{RESET}{YELLOW}Be{RESET}{BLUE}A{RESET}{MAGENTA}St{RESET} #############################
-               [{RED}Sp{RESET}]ectroscopic and [{GREEN}In{RESET}]terferometric [{YELLOW}Be{RESET}]-star [{BLUE}A{RESET}]nalysis [{MAGENTA}St{RESET}]ructure
-                                     Version: {__version__}                           
-                           https://github.com/akshat-chaturvedi/SpInBeASt                
-            ############################################################################
-        """)
+    print(f"{spin_beast}")
     t1 = time.perf_counter()
-    chiron_fits_files = list_fits_files("CHIRON_Spectra/StarSpectra")
+    # chiron_fits_files = list_fits_files("CHIRON_Spectra/StarSpectra")
     # apo_main()
     # hst_main()
     # hst_fits_files = list_fits_files_hst("HST_Spectra")
@@ -109,9 +113,9 @@ if __name__ == '__main__':
     # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "w") as file:
     #     file.write("\n".join(star_names))
 
-    # sky_plot()
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        executor.map(chiron_main, chiron_fits_files)
+    sky_plot()
+    # with concurrent.futures.ProcessPoolExecutor() as executor:
+    #     executor.map(chiron_main, chiron_fits_files)
 
     # files = glob.glob("CHARA/Prepped/HD191610/*28_Cyg*.oifits")
     # files.append('CHARA/Prepped/HD191610/2025Jul05_HD191610_NFiles01_H_test1split5m_prepped.oifits')
