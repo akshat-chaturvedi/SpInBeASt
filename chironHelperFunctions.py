@@ -211,13 +211,7 @@ def shafter_bisector_velocity(wavelengths, fluxes, line_center=6562.8, sep=10, s
 
 
 if __name__ == '__main__':
-    print("""
-        ========================== This is ACHILLES ============================
-          [A]kshat's [CHI]RON [L]ogistics [L]ayout for [E]chelle [S]pectroscopy
-                    https://github.com/akshat-chaturvedi/BeStars
-        ========================================================================
-        """)
-    print(' version:', __version__)
+    pass
     # infile = "CHIRON_Spectra/241120_planid_1034/achi241120.1157.fits"
     #
     # with fits.open(infile) as hdul:
