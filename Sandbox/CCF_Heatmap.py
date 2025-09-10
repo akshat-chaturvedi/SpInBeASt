@@ -12,7 +12,7 @@ import time
 from astropy.time import Time
 from SpectrumAnalyzer import spin_beast
 
-model_path = '../HST_Spectra/Models/HD214168_Models_Be/TLUSTY*_rec.fits'
+model_path = '../HST_Spectra/Models/HD157042_Models/TLUSTY*_rec.fits'
 
 def hst_ccf(obs_spec, model_file):
     """
@@ -37,8 +37,9 @@ def hst_ccf(obs_spec, model_file):
                  [14431, 15834]]
 
     for ind in omit_inds:
-        obs_spec[ind[0]:ind[1]] = 1
-        model_spec[ind[0]:ind[1]] = 1
+        x = np.arange(ind[0], ind[1])
+        obs_spec[ind[0]:ind[1]] = CubicSpline([ind[0], ind[1]],[obs_spec[ind[0]], obs_spec[ind[1]]])(x)
+
 
     ccf = sig.correlate(obs_spec, model_spec)
     lag_pixel = np.arange(len(ccf))-(len(ccf)-1)/2
@@ -128,12 +129,19 @@ def ccf_plot_heatmap(obs_spectrum, plot_index, star_name, obs_date, be_flag=Fals
     colors = [cmap(i / N) for i in range(N)]
 
     # Plotting CCF plots
+    # Read in broadened Be+sdO CCF
+    with fits.open(f"../HST_Spectra/Models/HD157042_Models_Be/Be_sdO_CCF.fits") as hdul:
+        be_sdo_ccf = hdul[0].data
+
     plt.rcParams['font.family'] = 'Geneva'
     fig, ax = plt.subplots(figsize=(15,10))
     # ax.plot(lag_loglam[ind], ccf[ind]-min(ccf[ind]), linewidth=3, c="k")
     for i in range(len(sorted_temps)):
-        ax.plot(sorted_x[i]*3e5, sorted_cs[i]-min(sorted_cs[i]), linewidth=3, label=f"{sorted_temps[i]/1000}", c=colors[i])
-    # ax.set_box_aspect(0.3)
+        ax.plot(sorted_x[i]*3e5, sorted_cs[i]-min(sorted_cs[i])-be_sdo_ccf[1], linewidth=3,
+                label=f"{sorted_temps[i]/1000}", c=colors[i])
+        # ax.plot(sorted_x[i] * 3e5, sorted_cs[i] - min(sorted_cs[i]), linewidth=3,
+        #         label=f"{sorted_temps[i] / 1000}", c=colors[i])
+    # ax.plot(be_sdo_ccf[0] * 3e5, be_sdo_ccf[1]*1.4, linewidth=3, c="k")
     ax.tick_params(axis='x', labelsize=18)
     ax.tick_params(axis='y', labelsize=18)
     ax.tick_params(axis='both', which='both', direction='in', labelsize=18, top=True, right=True, length=10,
@@ -218,7 +226,7 @@ def ccf_plot_heatmap(obs_spectrum, plot_index, star_name, obs_date, be_flag=Fals
 
 
 if __name__ == '__main__':
-    spec = pd.read_fwf("../HST_Spectra/HST_STIS_Spectra/HD214168_spectrum_data.txt", skiprows=1, header=None)
+    spec = pd.read_fwf("../HST_Spectra/HST_STIS_Spectra/HD157042_spectrum_data.txt", skiprows=1, header=None)
 
     obs_spec_arr = []
     col_arr = []
@@ -227,9 +235,9 @@ if __name__ == '__main__':
         obs_spec_arr.append(obs_spect)
         col_arr.append(col)
 
-    star_name_arr = ['HD214168_Be'] * len(obs_spec_arr)
+    star_name_arr = ['HD157042_a'] * len(obs_spec_arr)
     be_flag_arr = [True] * len(obs_spec_arr)  # Comment out when running sdO models
-    obs_jd_arr = [2458734.2340, 2458753.7073, 2458772.3051]
+    obs_jd_arr = [2458731.9106, 2458750.6386, 2458767.2423, 2460079.7452, 2460022.8637]
     obs_date_arr = []
     for obs_time in obs_jd_arr:
         obs_date_arr.append(Time(obs_time, format='jd').fits.split('T')[0])

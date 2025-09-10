@@ -31,6 +31,8 @@ def sky_plot(interactive=False):
             individual_obs_count += np.count_nonzero(np.array(chiron_inventory[0]) == name)
         if name in np.array(apo_inventory[0]):
             individual_obs_count += np.count_nonzero(np.array(apo_inventory[0]) == name)
+        if name in np.array(hst_inventory[1]):
+            individual_obs_count += np.array(hst_inventory[2][np.array(hst_inventory[1]) == name])[0]
         overall_obs_count.append(individual_obs_count)
 
     data = Table()
@@ -59,7 +61,7 @@ def sky_plot(interactive=False):
     # Add interactivity with mplcursors
     cursor = mplcursors.cursor(scatter, hover=True)
     cursor.connect("add", lambda sel: sel.annotation.set_text(star_names[sel.index]))
-    ax.set_title("Be+sdO Targets", fontsize=20)
+    ax.set_title("Be+sdOB Targets", fontsize=20)
 
     if interactive:
         plt.show()

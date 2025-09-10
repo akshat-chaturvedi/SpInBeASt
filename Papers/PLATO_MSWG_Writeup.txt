@@ -1,0 +1,189 @@
+The Be star phenomenon provides a unique challenge in the realm of stellar activity and massive eclipsing binaries. These are B-type stars with Keplerian "decretion" disks of material that is ejected from the stars due to their high rotation rates (>=0.75*v_crit) and non-radial pulsations (Rivinius et al. 2013). Single Be stars show variations in their light curves due to the complex dynamics and interactions of material within the decretion disk and sudden mass ejections from the star itself (Labadie-Bartz et al. 2022). These properties of the decretion disk can cause variability in Be stars on timescales of hours to months to decades, as is the case for γ Cassiopeiae variables (Labadie-Bartz et al. 2021). Recent efforts to model the seemingly stochastic behavior of these disks have led to successful derivations of stellar parameters for their host stars (Pavao et al. 2023, Figueiredo et al. 2025), opening up an exciting new avenue into the study of these enigmatic stars.
+
+The rapid rotation of Be stars has been attributed to mass transfer in an interacting binary system where the donor was an initially more massive star (Pols et al. 1991), which has lost its envelope following Roche lobe overflow to the gainer. This involves dumping mass and angular momentum onto this companion (thereby causing the spin-up), and leaving behind a hot stripped star, known as a sub-dwarf O or B (sdOB). Such systems add another layer of complexity to the variation seen in Be star light curves, with contributions from both components, and the effect of the stripped star on the circumstellar disk. There is currently only one known eclipsing Be+sdOB binary, V658 Car (de Amorim et al. 2025). Such systems offer the rare opportunity to obtain estimates for stellar radii and other vital properties for both components, and better inform future spectroscopic observations thereof. The placement of these stripped sub-dwarf stars on the HR diagram are not currently well understood due to the lack of accurate masses of a large enough sample.
+
+Long term, high quality photometric observations for a large sample of these systems will enable accurate modeling efforts to be carried out and would lead to mass estimates for the both components in these systems, and provide interesting targets for spectroscopic follow-up missions. These estimates are crucial to solving the missing link in massive binary evolution theory, in addition to determining the evolutionary pathways they would take. The latter is especially important as these systems are likely progenitors of double-compact objects, future gravitational wave sources (Götberg et al. 2020), and hydrogen-deficient supernovae (Sana et al. 2012, Eldridge et al. 2013), objects which are the targets of many current and future space- and ground-based missions.
+
+=======================================================CITATIONS========================================================
+
+@ARTICLE{2013A&ARv..21...69R,
+       author = {{Rivinius}, Thomas and {Carciofi}, Alex C. and {Martayan}, Christophe},
+        title = "{Classical Be stars. Rapidly rotating B stars with viscous Keplerian decretion disks}",
+      journal = {\aapr},
+     keywords = {Stars: emission-line, Be, Stars: rotation, Stars: oscillations, Stars: winds, outflows, Stars: circumstellar matter, Astrophysics - Solar and Stellar Astrophysics},
+         year = 2013,
+        month = oct,
+       volume = {21},
+          eid = {69},
+        pages = {69},
+          doi = {10.1007/s00159-013-0069-0},
+archivePrefix = {arXiv},
+       eprint = {1310.3962},
+ primaryClass = {astro-ph.SR},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2013A&ARv..21...69R},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+@ARTICLE{2025arXiv250508714F,
+       author = {{Figueiredo}, A.~L. and {Carciofi}, A.~C. and {Labadie-Bartz}, J. and {Pinho}, M.~L. and {de Amorin}, T.~H. and {dos Santos}, P.~T. and {Soszy{\'n}ski}, I. and {Udalski}, A.},
+        title = "{Be star demographics: a comprehensive study of thousands of lightcurves in the Magellanic Clouds}",
+      journal = {arXiv e-prints},
+     keywords = {Solar and Stellar Astrophysics},
+         year = 2025,
+        month = may,
+          eid = {arXiv:2505.08714},
+        pages = {arXiv:2505.08714},
+          doi = {10.48550/arXiv.2505.08714},
+archivePrefix = {arXiv},
+       eprint = {2505.08714},
+ primaryClass = {astro-ph.SR},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2025arXiv250508714F},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+@ARTICLE{2021MNRAS.502..242L,
+       author = {{Labadie-Bartz}, Jonathan and {Baade}, Dietrich and {Carciofi}, Alex C. and {Rubio}, Amanda and {Rivinius}, Thomas and {Borre}, Camilla C. and {Martayan}, Christophe and {Siverd}, Robert J.},
+        title = "{Short-term variability and mass loss in Be stars - VI. Frequency groups in {\ensuremath{\gamma}} Cas detected by TESS}",
+      journal = {\mnras},
+     keywords = {stars: emission-line, Be, stars: individual: {\ensuremath{\gamma}} Cassiopeiae, stars: massive, stars: mass-loss, stars: oscillations, Astrophysics - Solar and Stellar Astrophysics},
+         year = 2021,
+        month = mar,
+       volume = {502},
+       number = {1},
+        pages = {242-259},
+          doi = {10.1093/mnras/staa3913},
+archivePrefix = {arXiv},
+       eprint = {2012.06454},
+ primaryClass = {astro-ph.SR},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2021MNRAS.502..242L},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+@ARTICLE{1991A&A...241..419P,
+       author = {{Pols}, O.~R. and {Cote}, J. and {Waters}, L.~B.~F.~M. and {Heise}, J.},
+        title = "{The formation of Be stars through close binary evolution.}",
+      journal = {\aap},
+     keywords = {B Stars, Computational Astrophysics, Star Formation, X Ray Binaries, Neutron Stars, Star Distribution, Stellar Luminosity, Stellar Models, White Dwarf Stars, Astrophysics},
+         year = 1991,
+        month = jan,
+       volume = {241},
+        pages = {419},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/1991A&A...241..419P},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+@ARTICLE{2020ApJ...904...56G,
+       author = {{G{\"o}tberg}, Y. and {Korol}, V. and {Lamberts}, A. and {Kupfer}, T. and {Breivik}, K. and {Ludwig}, B. and {Drout}, M.~R.},
+        title = "{Stars Stripped in Binaries: The Living Gravitational-wave Sources}",
+      journal = {\apj},
+     keywords = {Compact binary stars, Interacting binary stars, Common envelope binary stars, Gravitational wave sources, Radial velocity, Ellipsoidal variable stars, X-ray binary stars, 283, 801, 2156, 677, 1332, 455, 1811, Astrophysics - Solar and Stellar Astrophysics, Astrophysics - Astrophysics of Galaxies, Astrophysics - High Energy Astrophysical Phenomena},
+         year = 2020,
+        month = nov,
+       volume = {904},
+       number = {1},
+          eid = {56},
+        pages = {56},
+          doi = {10.3847/1538-4357/abbda5},
+archivePrefix = {arXiv},
+       eprint = {2006.07382},
+ primaryClass = {astro-ph.SR},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2020ApJ...904...56G},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+@ARTICLE{2012Sci...337..444S,
+       author = {{Sana}, H. and {de Mink}, S.~E. and {de Koter}, A. and {Langer}, N. and {Evans}, C.~J. and {Gieles}, M. and {Gosset}, E. and {Izzard}, R.~G. and {Le Bouquin}, J. -B. and {Schneider}, F.~R.~N.},
+        title = "{Binary Interaction Dominates the Evolution of Massive Stars}",
+      journal = {Science},
+     keywords = {ASTRONOMY, Astrophysics - Solar and Stellar Astrophysics, Astrophysics - Cosmology and Extragalactic Astrophysics},
+         year = 2012,
+        month = jul,
+       volume = {337},
+       number = {6093},
+        pages = {444},
+          doi = {10.1126/science.1223344},
+archivePrefix = {arXiv},
+       eprint = {1207.6397},
+ primaryClass = {astro-ph.SR},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2012Sci...337..444S},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+@ARTICLE{2025arXiv250720053D,
+       author = {{de Amorim}, Tajan H. and {Carciofi}, Alex C. and {Labadie-Bartz}, Jonathan and {Silva}, Ariane C. and {Navarete}, Felipe and {Rappaport}, Saul A. and {Querido}, Pamela and {Rubio}, Amanda C. and {Bjorkman}, Jon and {Gagliano}, Robert and {Terentev}, Ivan},
+        title = "{X-Raying a Be star disk: fundamental parameters of the eclipsing binary Be star V658 Car}",
+      journal = {arXiv e-prints},
+     keywords = {Solar and Stellar Astrophysics},
+         year = 2025,
+        month = jul,
+          eid = {arXiv:2507.20053},
+        pages = {arXiv:2507.20053},
+          doi = {10.48550/arXiv.2507.20053},
+archivePrefix = {arXiv},
+       eprint = {2507.20053},
+ primaryClass = {astro-ph.SR},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2025arXiv250720053D},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+@ARTICLE{2022AJ....163..226L,
+       author = {{Labadie-Bartz}, Jonathan and {Carciofi}, Alex C. and {Henrique de Amorim}, Tajan and {Rubio}, Amanda and {Luiz Figueiredo}, Andr{\'e} and {Ticiani dos Santos}, Pedro and {Thomson-Paressant}, Keegan},
+        title = "{Classifying Be Star Variability With TESS. I. The Southern Ecliptic}",
+      journal = {\aj},
+     keywords = {Be stars, Pulsating variable stars, Stellar mass loss, Photometry, Light curves, Early-type emission stars, Circumstellar disks, Multi-periodic variable stars, 142, 1307, 1613, 1234, 918, 428, 235, 1079, Astrophysics - Solar and Stellar Astrophysics},
+         year = 2022,
+        month = may,
+       volume = {163},
+       number = {5},
+          eid = {226},
+        pages = {226},
+          doi = {10.3847/1538-3881/ac5abd},
+archivePrefix = {arXiv},
+       eprint = {2010.13905},
+ primaryClass = {astro-ph.SR},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2022AJ....163..226L},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+@ARTICLE{2023ApJ...959..131P,
+       author = {{Pavao}, Clarissa M. and {Richardson}, Noel D. and {Labadie-Bartz}, Jonathan and {Pablo}, Herbert and {Chen{\'e}}, Andr{\'e}-Nicolas},
+        title = "{Optical Properties and Variability of the Be X-Ray Binary CPD-29 2176}",
+      journal = {\apj},
+     keywords = {Be stars, Early-type stars, High mass x-ray binary stars, Binary stars, Circumstellar disks, Stellar oscillations, 142, 430, 733, 154, 235, 1617, Astrophysics - Solar and Stellar Astrophysics, Astrophysics - High Energy Astrophysical Phenomena},
+         year = 2023,
+        month = dec,
+       volume = {959},
+       number = {2},
+          eid = {131},
+        pages = {131},
+          doi = {10.3847/1538-4357/ad07cf},
+archivePrefix = {arXiv},
+       eprint = {2311.00293},
+ primaryClass = {astro-ph.SR},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2023ApJ...959..131P},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+@ARTICLE{2013MNRAS.436..774E,
+       author = {{Eldridge}, John J. and {Fraser}, Morgan and {Smartt}, Stephen J. and {Maund}, Justyn R. and {Crockett}, R. Mark},
+        title = "{The death of massive stars - II. Observational constraints on the progenitors of Type Ibc supernovae}",
+      journal = {\mnras},
+     keywords = {binaries: general, stars: evolution, supergiants, supernovae: general, stars: Wolf-Rayet, Astrophysics - Solar and Stellar Astrophysics, Astrophysics - Cosmology and Nongalactic Astrophysics},
+         year = 2013,
+        month = nov,
+       volume = {436},
+       number = {1},
+        pages = {774-795},
+          doi = {10.1093/mnras/stt1612},
+archivePrefix = {arXiv},
+       eprint = {1301.1975},
+ primaryClass = {astro-ph.SR},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2013MNRAS.436..774E},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+
+
+
+; https://ui.adsabs.harvard.edu/abs/2025arXiv250508714F/abstract
+; https://doi.org/10.1093/mnras/staa3913

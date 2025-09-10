@@ -100,9 +100,10 @@ def recursive_sigma_clipping(wavelengths, fluxes, star_name, order, degree=5, si
 
         plt.rcParams['font.family'] = 'Geneva'
         fig, ax = plt.subplots(figsize=(20, 10))
-        ax.plot(wavelengths, fluxes, c='k')
-        ax.plot(wavelengths, continuum_fit, c="red", alpha=0.7, linewidth=5)
-        ax.set_title(f'Blaze Function', fontsize=24)
+        ax.plot(wavelengths, fluxes, c='k', label="Spectrum")
+        ax.scatter(wavelengths[mask], fluxes[mask], c='xkcd:goldenrod', label="Points for Continuum Fit")
+        ax.plot(wavelengths, continuum_fit, c="red", alpha=0.7, linewidth=5, label="Blaze Function Fit")
+        ax.set_title(f'Blaze Function for {star_name} Order {order}', fontsize=24)
         ax.set_xlabel("Wavelength [Å]", fontsize=22)
         ax.set_ylabel("Un-Normalized Flux", fontsize=22)
         ax.tick_params(axis='both', which='both', direction='in', top=True, right=True)
@@ -110,6 +111,7 @@ def recursive_sigma_clipping(wavelengths, fluxes, star_name, order, degree=5, si
         ax.tick_params(axis='x', which='major', labelsize=20)
         ax.tick_params(axis='both', which='major', length=10, width=1)
         ax.yaxis.get_offset_text().set_size(20)
+        ax.legend(loc="upper right", fontsize=18)
         fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/Blaze_Function/{star_name}/{star_name}_{order}.pdf",
                     bbox_inches="tight", dpi=300)
 
@@ -175,6 +177,25 @@ def find_zero_crossing_nearest_zero(x, y):
 
     return min(zero_crossings, key=lambda v: abs(v))
 
+
+def find_crossings(wavelength, flux, frac=0.25):
+    # Find threshold
+    peak = flux.max()
+    threshold = frac * peak
+
+    crossings = []
+    for i in range(len(flux)-1):
+        f1, f2 = flux[i], flux[i+1]
+        if (f1-threshold) * (f2-threshold) < 0:  # sign change
+            # Linear interpolation for crossing
+            w1, w2 = wavelength[i], wavelength[i+1]
+            slope = (f2 - f1) / (w2 - w1)
+            crossing = w1 + (threshold - f1) / slope
+            crossings.append(crossing)
+
+    return [crossings[0], crossings[-1]], threshold
+
+
 def shafter_bisector_velocity(wavelengths, fluxes, line_center=6562.8, sep=10, sigma=5, v_window=5000, v_step=2.6):
     """
     Finds the bisector velocity of the wings of the H Alpha line in a 1D spectrum using the oppositely signed double
@@ -208,6 +229,55 @@ def shafter_bisector_velocity(wavelengths, fluxes, line_center=6562.8, sep=10, s
     bisector_velocity = find_zero_crossing_nearest_zero(v_grid, ccf)
 
     return bisector_velocity, v_grid, ccf
+
+
+def monte_carlo_bisector_error(
+    wavelengths, fluxes,
+    shafter_func,       # your shafter_bisector_velocity function
+    n_trials=500,
+    sigma_flux=None,    # scalar or array; if None, estimate via estimate_continuum_sigma
+    rng=None,
+    **shafter_kwargs
+):
+    """
+    Monte Carlo error on the bisector velocity.
+
+    Parameters
+    ----------
+    wavelengths, fluxes : arrays
+    shafter_func : callable
+        Function returning (v_bis, v_grid, ccf)
+    n_trials : int
+    sigma_flux : float or array or None
+        Per-pixel 1σ noise. If None, estimated via estimate_continuum_sigma (scalar).
+    rng : np.random.Generator or None
+    **shafter_kwargs : passed to shafter_func
+
+    Returns
+    -------
+    v_mean, v_std, v_all : float, float, array
+    """
+
+    if rng is None:
+        rng = np.random.default_rng()
+
+    if np.isscalar(sigma_flux):
+        sigma_arr = np.full_like(fluxes, float(sigma_flux))
+    else:
+        sigma_arr = np.asarray(sigma_flux, dtype=float)
+
+    v_list = []
+    for _ in range(n_trials):
+        noisy = fluxes + rng.normal(0.0, sigma_arr)
+        v_bis, _, _ = shafter_func(wavelengths, noisy, **shafter_kwargs)
+        if v_bis is not None and np.isfinite(v_bis):
+            v_list.append(v_bis)
+
+    v_all = np.array(v_list)
+    if len(v_all) == 0:
+        return np.nan, np.nan, v_all
+
+    return float(np.mean(v_all)), float(np.std(v_all, ddof=1)), v_all
 
 
 if __name__ == '__main__':

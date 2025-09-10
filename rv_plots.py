@@ -6,6 +6,7 @@ import pandas as pd
 import astropy.units as u
 import pickle
 import os
+from SpectrumAnalyzer import spin_beast
 
 RED = '\033[91m'
 GREEN = '\033[92m'
@@ -142,8 +143,8 @@ def rv_plot(star_name, show_raw_plot=False, params=None):
     fig, ax = plt.subplots(2,1, sharex=True, figsize=(20, 10), gridspec_kw={'height_ratios': [4, 1]})
     plt.subplots_adjust(hspace=0)
     fig.supxlabel("Phase", fontsize=24)
-    ax[0].errorbar(phase, data.rv, yerr=data.rv_err, color="red", fmt="o", markersize=10, capsize=5,
-                   label=f"{star_name}")
+    ax[0].errorbar(phase, data.rv, yerr=data.rv_err, color="red", fmt="o", markersize=10, capsize=5, mec="k", mew=2,
+                   mfc="r", label=f"{star_name}")
     ax[0].plot(phase_grid, orbit.radial_velocity(t0+P*unit_phase_grid), color="k", label=f'P={my_arr[0][0][0]:.2f} d')
     ax[0].set_ylabel("Radial Velocity [km s$^{-1}$]", fontsize=22)
     ax[0].legend(fontsize=22)
@@ -152,9 +153,23 @@ def rv_plot(star_name, show_raw_plot=False, params=None):
     ax[0].set_xlim(0, 1)
     ax[0].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
                    width=1)
-
-    ax[1].errorbar(phase, resids, yerr=data.rv_err, color="red", fmt="o", markersize=5, capsize=5)
-    ax[1].set_ylabel("Residuals", fontsize=24)
+    ax[0].text(
+        0.85, 0.7,  # (x, y) in axes coordinates (1.0 is right/top)
+        f"P={orbit_dict['P']:.2f}\nM={orbit_dict['M0']:.2f}\nomega={orbit_dict['omega']:.2f}\ne={orbit_dict['e']:.2f}\nK={orbit_dict['K']:.2f}"
+        f"\nv0={orbit_dict['v0']:.2f}",  # Text string
+        ha='left', va='bottom',  # Horizontal and vertical alignment
+        transform=ax[0].transAxes,  # Use axes coordinates
+        fontsize=16,
+        fontweight='bold',
+        bbox=dict(
+            facecolor='white',  # Box background color
+            edgecolor='black',  # Box border color
+            boxstyle='square,pad=0.3',  # Rounded box with padding
+            alpha=0.9  # Slight transparency
+        )
+    )
+    ax[1].errorbar(phase, resids, yerr=data.rv_err, color="red", fmt="o", ms=8, capsize=5, mec="k", mew=2, mfc="r")
+    ax[1].set_ylabel("O-C", fontsize=24)
     ax[1].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
                       width=1)
     ax[1].yaxis.get_offset_text().set_size(22)
@@ -162,10 +177,42 @@ def rv_plot(star_name, show_raw_plot=False, params=None):
     fig.savefig(f"RV_Plots/{spec_flag}/{star_name}/{star_name}_phase_folded.pdf", bbox_inches="tight", dpi=300)
     plt.close()
 
+    final_dat = pd.concat([pd.Series(phase), pd.Series(data.rv)], axis='columns')
+    final_dat.columns = ['Phase', 'RV_obs']
+    final_dat.to_csv(f"RV_Plots/{spec_flag}/{star_name}/{star_name}_phase_folded.txt", index=False)
+
+    final_dat = pd.concat([pd.Series(phase_grid), pd.Series(orbit.radial_velocity(t0+P*unit_phase_grid))], axis='columns')
+    final_dat.columns = ['Phase', 'RV_calc']
+    final_dat.to_csv(f"RV_Plots/{spec_flag}/{star_name}/{star_name}_phase_folded_model.txt", index=False)
+
     print(f"{GREEN}RV orbit-fitting analysis finished!{RESET}")
     return
 
 
 if __name__ == '__main__':
-    dat = pd.read_csv("RV_Data/V846Ara_HST.txt", header=None)
-    rv_plot("HD152478")
+    print(spin_beast)
+    dat = pd.read_csv("RV_Data/LSMus.txt", header=None)
+    rv_plot("HD113120", show_raw_plot=True)
+
+    # opt_dat = pd.read_csv("RV_Plots/Optical/HD113120/HD113120_phase_folded.txt")
+    # opt_model = pd.read_csv("RV_Plots/Optical/HD113120/HD113120_phase_folded_model.txt")
+    #
+    # uv_dat = pd.read_csv("RV_Plots/UV/HD113120/HD113120_phase_folded.txt")
+    # uv_model = pd.read_csv("RV_Plots/UV/HD113120/HD113120_phase_folded_model.txt")
+    #
+    # fig, ax = plt.subplots(figsize=(20, 10))
+    # plt.subplots_adjust(hspace=0)
+    # fig.supxlabel("Phase", fontsize=24)
+    # ax.scatter(opt_dat['Phase'], opt_dat['RV_obs']-np.mean(opt_dat['RV_obs']), color="red", s=100, label="CHIRON", zorder=15)
+    # ax.plot(opt_model['Phase'], opt_model['RV_calc']-np.mean(opt_model['RV_calc']), color="k")
+    # ax.scatter(uv_dat['Phase'], uv_dat['RV_obs']-np.mean(uv_dat['RV_obs']), color="dodgerblue", s=100, label="HST", zorder=15)
+    # ax.plot(uv_model['Phase'], uv_model['RV_calc']-np.mean(uv_model['RV_calc']), color="k")
+    # ax.set_ylabel("Radial Velocity [km s$^{-1}$]", fontsize=22)
+    # ax.legend(fontsize=22)
+    # ax.tick_params(axis='x', labelsize=20)
+    # ax.tick_params(axis='y', labelsize=20)
+    # ax.set_xlim(0, 1)
+    # ax.tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
+    #                   width=1)
+    # fig.savefig(f"RV_Plots/HD113120_phase_folded_both.pdf", bbox_inches="tight", dpi=300)
+    # plt.close()

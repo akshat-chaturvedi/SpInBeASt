@@ -101,10 +101,10 @@ class CHIRONSpectrum:
 
             if self.star_name == 'HR 2142' and self.obs_date == '2024-12-13':
                 continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=38,
-                                                               degree=3, sigma_threshold=3)
+                                                               degree=3, sigma_threshold=3, blaze_plots=True)
             else:
                 continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=38,
-                                                               degree=5, sigma_threshold=3)
+                                                               degree=5, sigma_threshold=3, blaze_plots=True)
             wavs = np.array(wavs)
             fluxes = np.array(fluxes)
 
@@ -145,7 +145,7 @@ class CHIRONSpectrum:
                 fluxes.append(self.dat[7][j][1])
 
             continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=8,
-                                                           degree=5, sigma_threshold=3)
+                                                           degree=5, sigma_threshold=3, blaze_plots=True)
             wavs = np.array(wavs)
             fluxes = np.array(fluxes)
 
@@ -186,10 +186,10 @@ class CHIRONSpectrum:
 
             if self.star_name == 'HR 2142' and self.obs_date == '2024-12-13':
                 continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=39,
-                                                               degree=3, sigma_threshold=3)
+                                                               degree=3, sigma_threshold=3, blaze_plots=True)
             else:
                 continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=39,
-                                                               degree=5, sigma_threshold=3)
+                                                               degree=5, sigma_threshold=3, blaze_plots=True)
             wavs = np.array(wavs)
             fluxes = np.array(fluxes)
 
@@ -542,8 +542,16 @@ class CHIRONSpectrum:
         wavs = np.array(spec[f"{h_alpha_order}"]["Wavelengths"])  # Read in H Alpha order wavelengths
         fluxes = np.array(spec[f"{h_alpha_order}"]["Fluxes"])  # Read in H Alpha order fluxes
 
-        v_bis, v_grid, ccf = shafter_bisector_velocity(wavs, fluxes, sep=10, sigma=5)
+        # v_bis, v_grid, ccf = shafter_bisector_velocity(wavs, fluxes, sep=10, sigma=5)
+        cross, threshold = find_crossings(wavs, fluxes - 1)
+        sep = cross[-1] - cross[0]
+        v_bis, v_grid, ccf = shafter_bisector_velocity(wavs, fluxes, sep=sep)
 
+        sig_ind = np.where(wavs > 6600)[0]
+        sig_cont = np.std(fluxes[sig_ind] - 1)
+
+        err_v_bis = (np.sqrt(7)/np.log(4)) * sig_cont * np.sqrt(0.25*(max(fluxes-1))*np.diff(wavs)[0] * 2.6)
+        breakpoint()
         rad_vel_bc_corrected = v_bis - self.bc_corr/1000
         if print_rad_vel:
             print(f"Radial Velocity: \033[92m{rad_vel_bc_corrected:.3f} km/s\033[0m")
@@ -566,8 +574,8 @@ class CHIRONSpectrum:
         ax.set_xlabel("Radial Velocity [km s$^{-1}$]", fontsize=22)
         ax.set_ylabel("Normalized Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=22)
         ax.set_xlim(-500, 500)
-        ax.text(0.8, 0.8, fr"{self.star_name} H$\alpha$"
-                          f"\nHJD {self.obs_jd:.4f}\nRV = {v_bis:.3f} km/s",
+        ax.text(0.78, 0.8, fr"{self.star_name} H$\alpha$"
+                          f"\nHJD {self.obs_jd:.4f}\nRV = {v_bis:.3f}±{err_v_bis:.3f} km/s",
                 color="k", fontsize=18, transform=ax.transAxes,
                 bbox=dict(
                     facecolor='white',  # Box background color
@@ -584,25 +592,25 @@ class CHIRONSpectrum:
 
         if not os.path.exists("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt"):
             with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "w") as file:
-                file.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{rad_vel_bc_corrected:.3f}\n")
+                file.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{rad_vel_bc_corrected:.3f},{err_v_bis:.5f}\n")
         else:
             with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "r") as f:
                 jds = f.read().splitlines()
 
             if not any(str(self.obs_jd) in line for line in jds):
                 with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "a") as f:
-                    f.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{rad_vel_bc_corrected:.3f}\n")
+                    f.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{rad_vel_bc_corrected:.3f},{err_v_bis:.5f}\n")
 
         if not os.path.exists(f"CHIRON_Spectra/StarSpectra/RV_Measurements/{self.star_name}_RV.txt"):
             with open(f"CHIRON_Spectra/StarSpectra/RV_Measurements/{self.star_name}_RV.txt", "w") as file:
-                file.write(f"{self.obs_jd},{rad_vel_bc_corrected:.3f}\n")
+                file.write(f"{self.obs_jd},{rad_vel_bc_corrected:.3f},{err_v_bis:.5f}\n")
         else:
             with open(f"CHIRON_Spectra/StarSpectra/RV_Measurements/{self.star_name}_RV.txt", "r") as f:
                 jds = f.read().splitlines()
 
             if not any(str(self.obs_jd) in line for line in jds):
                 with open(f"CHIRON_Spectra/StarSpectra/RV_Measurements/{self.star_name}_RV.txt", "a") as f:
-                    f.write(f"{self.obs_jd},{rad_vel_bc_corrected:.3f}\n")
+                    f.write(f"{self.obs_jd},{rad_vel_bc_corrected:.3f},{err_v_bis:.5f}\n")
 
     @staticmethod
     def exp_time(v_mag_array, star_name_array):

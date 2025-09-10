@@ -32,7 +32,8 @@ spin_beast = f"""
             ############################################################################
 """
 
-def apo_main(file_name):
+
+def apo_main(file_name: str):
     logging.basicConfig(
         filename='SpectrumAnalyzer.log',
         encoding='utf-8',
@@ -48,7 +49,7 @@ def apo_main(file_name):
     logging.info(f'ARCES Spectrum Analyzed: {star.star_name}, Observation Date: {star.obs_date}')
     print("\a")
 
-def hst_main(file_name):
+def hst_main(file_name: str):
     logging.basicConfig(
         filename='SpectrumAnalyzer.log',
         encoding='utf-8',
@@ -63,7 +64,7 @@ def hst_main(file_name):
     print("\a")
 
 
-def chiron_main(file_name):
+def chiron_main(file_name: str):
     logging.basicConfig(
         filename='SpectrumAnalyzer.log',
         encoding='utf-8',
@@ -75,7 +76,7 @@ def chiron_main(file_name):
 
     star = CHIRONSpectrum(file_name)
     star.blaze_corrected_plotter(full_spec=True)
-    star.multi_epoch_spec()
+    # star.multi_epoch_spec()
     # star.radial_velocity()
     star.radial_velocity_bisector()
     logging.info(f'CHIRON Spectrum Analyzed: {star.star_name}, Observation Date: {star.obs_date}')
@@ -92,13 +93,13 @@ if __name__ == '__main__':
     # pass
     print(f"{spin_beast}")
     t1 = time.perf_counter()
-    # chiron_fits_files = list_fits_files("CHIRON_Spectra/StarSpectra")
+    chiron_fits_files = list_fits_files("CHIRON_Spectra/Archival/HD113120")
+    # chiron_main("CHIRON_Spectra/StarSpectra/ANCol_Fifth.fits")
     # apo_main()
     # hst_main()
     # hst_fits_files = list_fits_files_hst("HST_Spectra")
-    # chiron_main("CHIRON_Spectra/StarSpectra/HR2142_Second.fits")
     # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "r") as f:
-        #Read the names
+        # Read the names
         # star_names = sorted(f.read().splitlines())
     #
     # # Modify the names based on the condition
@@ -113,25 +114,29 @@ if __name__ == '__main__':
     # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "w") as file:
     #     file.write("\n".join(star_names))
 
-    sky_plot()
+    # sky_plot()
     # with concurrent.futures.ProcessPoolExecutor() as executor:
     #     executor.map(chiron_main, chiron_fits_files)
+    for file in chiron_fits_files:
+        chiron_main(file)
 
     # files = glob.glob("CHARA/Prepped/HD191610/*28_Cyg*.oifits")
-    # files.append('CHARA/Prepped/HD191610/2025Jul05_HD191610_NFiles01_H_test1split5m_prepped.oifits')
-    # star_names = ['HD191610'] * len(files)
-    # star_diams = [0.214] * len(files)
+    # files += glob.glob("CHARA/Prepped/HD191610/*split5m_prepped.oifits")
+    # files = glob.glob("CHARA/Prepped/HD214168/2025Aug23*_H_*test1split5m_prepped.oifits")
+    # files.append("CHARA/Prepped/HD214168/MIRCX_L2.2021Sep23.8_Lac_A.MIRCX_IDL.1.SPLIT.oifits")
+    # star_names = ['HD214168'] * len(files)
+    # star_diams = [0.1526112] * len(files)
     #
     # with concurrent.futures.ProcessPoolExecutor() as executor:
     #     executor.map(binary_fit, files, star_names, star_diams)
-
-    # json_files = glob.glob("CHARA/CompanionParams/*HD191610_H.json")
+    #
+    # json_files = glob.glob("CHARA/CompanionParams/*HD214168_H.json")
     # json_files.sort()
     # companion_data = []
     # for file in json_files:
     #     companion_data.append(companion_position(file))
     #
-    # orbit_plotter(companion_data, "HD191610")
+    # orbit_plotter(companion_data, "HD214168")
 
 
     t2 = time.perf_counter()
