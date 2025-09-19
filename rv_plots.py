@@ -6,6 +6,7 @@ import pandas as pd
 import astropy.units as u
 import pickle
 import os
+import corner
 from SpectrumAnalyzer import spin_beast
 
 RED = '\033[91m'
@@ -88,7 +89,28 @@ def rv_plot(star_name, show_raw_plot=False, params=None):
 
     joker = tj.TheJoker(prior)
     prior_samples = prior.sample(size=200_000)
-    samples = joker.rejection_sample(data, prior_samples, max_posterior_samples=256)
+    samples = joker.rejection_sample(data, prior_samples, max_posterior_samples=512)
+
+    params = np.vstack([
+        samples['P'].value,  # Period (days)
+        samples['e'].value,  # Eccentricity
+        samples['omega'].value,  # Argument of periapsis (rad)
+        samples['M0'].value,  # Mean anomaly (rad)
+        samples['K'].to_value(u.km / u.s),  # Semi-amplitude
+        samples['v0'].to_value(u.km / u.s)  # Systemic velocity
+    ]).T
+
+    labels = [r"$P$ [day]", r"$e$", r"$\omega$ [rad]", r"$M_0$ [rad]",
+              r"$K$ [km/s]", r"$v_0$ [km/s]"]
+
+    if len(samples) > len(labels):
+        fig = corner.corner(params, labels=labels, show_titles=True,
+                            quantiles=[0.16, 0.5, 0.84], title_kwargs={"fontsize": 12})
+        fig.savefig(f"RV_Plots/{spec_flag}/{star_name}/{star_name}_corner.pdf",
+                    bbox_inches="tight", dpi=300)
+        plt.close(fig)
+    else:
+        print(f"{YELLOW}-->Too few posterior samples ({len(samples)}) to make a corner plot.{RESET}")
 
     # Creating posterior plots
     fig, ax = plt.subplots(1, 1, figsize=(6, 4), layout="tight")
@@ -177,8 +199,8 @@ def rv_plot(star_name, show_raw_plot=False, params=None):
     fig.savefig(f"RV_Plots/{spec_flag}/{star_name}/{star_name}_phase_folded.pdf", bbox_inches="tight", dpi=300)
     plt.close()
 
-    final_dat = pd.concat([pd.Series(phase), pd.Series(data.rv)], axis='columns')
-    final_dat.columns = ['Phase', 'RV_obs']
+    final_dat = pd.concat([pd.Series(phase), pd.Series(data.rv), pd.Series(resids)], axis='columns')
+    final_dat.columns = ['Phase', 'RV_obs', 'Residuals']
     final_dat.to_csv(f"RV_Plots/{spec_flag}/{star_name}/{star_name}_phase_folded.txt", index=False)
 
     final_dat = pd.concat([pd.Series(phase_grid), pd.Series(orbit.radial_velocity(t0+P*unit_phase_grid))], axis='columns')
@@ -191,28 +213,35 @@ def rv_plot(star_name, show_raw_plot=False, params=None):
 
 if __name__ == '__main__':
     print(spin_beast)
-    dat = pd.read_csv("RV_Data/LSMus.txt", header=None)
-    rv_plot("HD113120", show_raw_plot=True)
+    dat = pd.read_csv("RV_Data/HD 152478_RV.txt", header=None)
+    rv_plot("HD152478_Arc_Mine", show_raw_plot=True)
 
     # opt_dat = pd.read_csv("RV_Plots/Optical/HD113120/HD113120_phase_folded.txt")
     # opt_model = pd.read_csv("RV_Plots/Optical/HD113120/HD113120_phase_folded_model.txt")
     #
     # uv_dat = pd.read_csv("RV_Plots/UV/HD113120/HD113120_phase_folded.txt")
     # uv_model = pd.read_csv("RV_Plots/UV/HD113120/HD113120_phase_folded_model.txt")
-    #
-    # fig, ax = plt.subplots(figsize=(20, 10))
+
+    # fig, ax = plt.subplots(2,1, sharex=True, figsize=(20, 10), gridspec_kw={'height_ratios': [4, 1]})
     # plt.subplots_adjust(hspace=0)
     # fig.supxlabel("Phase", fontsize=24)
-    # ax.scatter(opt_dat['Phase'], opt_dat['RV_obs']-np.mean(opt_dat['RV_obs']), color="red", s=100, label="CHIRON", zorder=15)
-    # ax.plot(opt_model['Phase'], opt_model['RV_calc']-np.mean(opt_model['RV_calc']), color="k")
-    # ax.scatter(uv_dat['Phase'], uv_dat['RV_obs']-np.mean(uv_dat['RV_obs']), color="dodgerblue", s=100, label="HST", zorder=15)
-    # ax.plot(uv_model['Phase'], uv_model['RV_calc']-np.mean(uv_model['RV_calc']), color="k")
-    # ax.set_ylabel("Radial Velocity [km s$^{-1}$]", fontsize=22)
-    # ax.legend(fontsize=22)
-    # ax.tick_params(axis='x', labelsize=20)
-    # ax.tick_params(axis='y', labelsize=20)
-    # ax.set_xlim(0, 1)
-    # ax.tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
+    # ax[0].scatter(opt_dat['Phase'], opt_dat['RV_obs']-np.mean(opt_model['RV_calc']), color="red", s=100, label="CHIRON",
+    #            zorder=15, edgecolor='k', linewidth=2)
+    # ax[0].plot(opt_model['Phase'], opt_model['RV_calc']-np.mean(opt_model['RV_calc']), color="k", linewidth=2)
+    # ax[0].scatter(uv_dat['Phase'], uv_dat['RV_obs']-np.mean(uv_model['RV_calc']), color="dodgerblue", s=100, label="HST",
+    #            zorder=15, edgecolor='k', linewidth=2, marker='s')
+    # ax[0].plot(uv_model['Phase'], uv_model['RV_calc']-np.mean(uv_model['RV_calc']), color="k", linewidth=2)
+    # ax[0].set_ylabel("Radial Velocity [km s$^{-1}$]", fontsize=22)
+    # ax[0].legend(fontsize=22)
+    # ax[0].set_xlim(0, 1)
+    # ax[0].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
     #                   width=1)
-    # fig.savefig(f"RV_Plots/HD113120_phase_folded_both.pdf", bbox_inches="tight", dpi=300)
+    # ax[1].scatter(opt_dat['Phase'], opt_dat['Residuals'], c="red", s=100, zorder=15, edgecolor='k', linewidth=2)
+    # ax[1].scatter(uv_dat['Phase'], uv_dat['Residuals'], c="dodgerblue", s=100, zorder=15, edgecolor='k', linewidth=2, marker='s')
+    # ax[1].set_ylabel("O-C", fontsize=24)
+    # ax[1].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
+    #                   width=1)
+    # ax[1].yaxis.get_offset_text().set_size(22)
+    # ax[1].hlines(0, 0, 1, color="k", linestyle="--", zorder=0)
+    # fig.savefig(f"RV_Plots/HD113120_phase_folded_both_1.pdf", bbox_inches="tight", dpi=300)
     # plt.close()

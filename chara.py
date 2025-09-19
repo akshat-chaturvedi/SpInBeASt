@@ -18,7 +18,9 @@ YELLOW = '\033[93m'
 GREEN = '\033[92m'
 RESET = '\033[0m'
 
-def binary_fit(filename, star_name, star_diam):
+plt.rcParams['font.family'] = 'Geneva'
+
+def binary_fit(filename, star_name, star_diam, band):
     logging.basicConfig(
         filename='BinaryFit.log',
         encoding='utf-8',
@@ -35,7 +37,7 @@ def binary_fit(filename, star_name, star_diam):
 
         print(f"{GREEN}-->CHARA/Figures/Fit_Figures/{star_name} directory created, plots will be saved here!{RESET}")
 
-    band = 'H'  # MIRCX = H; MYSTIC = K
+    band = band  # MIRCX = H; MYSTIC = K
     oi = pmoired.OI(filename)
     obs_date = Time(np.mean(oi.data[0]['MJD']), format='mjd').fits.split("T")[0]
     obs_time = Time(np.mean(oi.data[0]['MJD']), format='mjd').value
@@ -160,8 +162,8 @@ def orbit_plotter(comp_data, star_name):
     separations = []
     separation_errs = []
     obs_times = []
-    phys_seps_ra = []
-    phys_seps_dec = []
+    ra = []
+    dec = []
     for i, dat in enumerate(comp_data):
         pos_angles = pa(dat[0], dat[1], dat[2], dat[3])
         seps = comp_sep(dat[0], dat[1], dat[2], dat[3])
@@ -170,6 +172,8 @@ def orbit_plotter(comp_data, star_name):
         separations.append(seps[0])
         separation_errs.append(seps[1])
         obs_times.append(dat[6])
+        ra.append(dat[0])
+        dec.append(dat[2])
 
         print(" "*18 + f"{dat[5]}\t" + f"{dat[6]:.4f}\t" +f"PA = {pos_angles[0]:.3f} ± {pos_angles[1]:.3e}\t" +
               f"\tSep = {seps[0]:.3f} ± {seps[1]:.3e}")
@@ -222,8 +226,10 @@ def orbit_plotter(comp_data, star_name):
     separations = pd.Series(separations)
     separation_errs = pd.Series(separation_errs)
     obs_times = pd.Series(obs_times)
+    ra = pd.Series(ra)
+    dec = pd.Series(dec)
 
-    df = pd.concat([obs_times, pas, pa_errs, separations, separation_errs], axis="columns")
+    df = pd.concat([obs_times, ra, dec, pas, pa_errs, separations, separation_errs], axis="columns")
     # df.columns = ["Wavelength", "Flux"]
     df.to_csv(f"CHARA/{star_name}.txt", index=False, sep="\t", header=False, float_format="%.6f")
 

@@ -47,7 +47,7 @@ def apo_main(file_name: str):
     star.multi_epoch_spec()
     star.radial_velocity_bisector()
     logging.info(f'ARCES Spectrum Analyzed: {star.star_name}, Observation Date: {star.obs_date}')
-    print("\a")
+    # print("\a")
 
 def hst_main(file_name: str):
     logging.basicConfig(
@@ -75,10 +75,10 @@ def chiron_main(file_name: str):
     )
 
     star = CHIRONSpectrum(file_name)
-    star.blaze_corrected_plotter(full_spec=True)
+    star.blaze_corrected_plotter()
     # star.multi_epoch_spec()
     # star.radial_velocity()
-    star.radial_velocity_bisector()
+    star.radial_velocity_bisector(print_crossings=False)
     logging.info(f'CHIRON Spectrum Analyzed: {star.star_name}, Observation Date: {star.obs_date}')
 
     # rv_files = glob.glob("CHIRON_Spectra/StarSpectra/RV_Measurements/*_RV.txt", recursive=True)
@@ -93,8 +93,10 @@ if __name__ == '__main__':
     # pass
     print(f"{spin_beast}")
     t1 = time.perf_counter()
-    chiron_fits_files = list_fits_files("CHIRON_Spectra/Archival/HD113120")
-    # chiron_main("CHIRON_Spectra/StarSpectra/ANCol_Fifth.fits")
+    chiron_fits_files = list_fits_files("CHIRON_Spectra/StarSpectra/")
+    chiron_fits_files += list_fits_files("CHIRON_Spectra/Archival")
+    # apo_fits_files = list_fits_files("APO_Spectra/FitsFiles/")
+    # chiron_main("CHIRON_Spectra/StarSpectra/V378Pup_Third.fits")
     # apo_main()
     # hst_main()
     # hst_fits_files = list_fits_files_hst("HST_Spectra")
@@ -103,12 +105,12 @@ if __name__ == '__main__':
         # star_names = sorted(f.read().splitlines())
     #
     # # Modify the names based on the condition
-    # # for name in star_names:
+    # for name in star_names:
     # #     # name = name.strip()  # Remove leading/trailing whitespaces
     # #     creation_date = get_file_creation_date(name)
     # #     if creation_date:
     # #         name += f"-->DONE-{creation_date}"
-    # #     modified_names.append(name)
+    #     modified_names.append(name)
     #
     # Write back to the file
     # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "w") as file:
@@ -116,9 +118,16 @@ if __name__ == '__main__':
 
     # sky_plot()
     # with concurrent.futures.ProcessPoolExecutor() as executor:
-    #     executor.map(chiron_main, chiron_fits_files)
-    for file in chiron_fits_files:
-        chiron_main(file)
+    #     futures = [executor.submit(chiron_main, f) for f in chiron_fits_files]
+
+        # iterate over futures as they complete
+        # for _ in tqdm(concurrent.futures.as_completed(futures), total=len(futures), colour='#8e82fe', file=sys.stdout):
+        #     pass  # each finished future advances the bar
+        # executor.map(apo_main, apo_fits_files)
+    # for file in chiron_fits_files:
+    #     chiron_main(file)
+    # for file in apo_fits_files:
+    #     apo_main(file)
 
     # files = glob.glob("CHARA/Prepped/HD191610/*28_Cyg*.oifits")
     # files += glob.glob("CHARA/Prepped/HD191610/*split5m_prepped.oifits")
@@ -126,17 +135,18 @@ if __name__ == '__main__':
     # files.append("CHARA/Prepped/HD214168/MIRCX_L2.2021Sep23.8_Lac_A.MIRCX_IDL.1.SPLIT.oifits")
     # star_names = ['HD214168'] * len(files)
     # star_diams = [0.1526112] * len(files)
-    #
+    chara_file = 'CHARA/Prepped/HD041335/MIRCX_L2.2021Nov17.HR_2142.MIRCX_IDL.1.SPLIT.oifits'
+    binary_fit(chara_file, 'HD041335', 0.259, "H")
     # with concurrent.futures.ProcessPoolExecutor() as executor:
     #     executor.map(binary_fit, files, star_names, star_diams)
     #
-    # json_files = glob.glob("CHARA/CompanionParams/*HD214168_H.json")
-    # json_files.sort()
-    # companion_data = []
-    # for file in json_files:
-    #     companion_data.append(companion_position(file))
+    json_files = glob.glob("CHARA/CompanionParams/*HD041335*.json")
+    json_files.sort()
+    companion_data = []
+    for file in json_files:
+        companion_data.append(companion_position(file))
     #
-    # orbit_plotter(companion_data, "HD214168")
+    orbit_plotter(companion_data, "HD041335")
 
 
     t2 = time.perf_counter()

@@ -12,7 +12,7 @@ import time
 from astropy.time import Time
 from SpectrumAnalyzer import spin_beast
 
-model_path = '../HST_Spectra/Models/HD157042_Models/TLUSTY*_rec.fits'
+model_path = '../HST_Spectra/Models/HD157832_Models/TLUSTY*_rec.fits'
 
 def hst_ccf(obs_spec, model_file):
     """
@@ -226,7 +226,7 @@ def ccf_plot_heatmap(obs_spectrum, plot_index, star_name, obs_date, be_flag=Fals
 
 
 if __name__ == '__main__':
-    spec = pd.read_fwf("../HST_Spectra/HST_STIS_Spectra/HD157042_spectrum_data.txt", skiprows=1, header=None)
+    spec = pd.read_fwf("../HST_Spectra/HST_STIS_Spectra/HD157832_spectrum_data.txt", skiprows=1, header=None)
 
     obs_spec_arr = []
     col_arr = []
@@ -235,9 +235,9 @@ if __name__ == '__main__':
         obs_spec_arr.append(obs_spect)
         col_arr.append(col)
 
-    star_name_arr = ['HD157042_a'] * len(obs_spec_arr)
-    be_flag_arr = [True] * len(obs_spec_arr)  # Comment out when running sdO models
-    obs_jd_arr = [2458731.9106, 2458750.6386, 2458767.2423, 2460079.7452, 2460022.8637]
+    star_name_arr = ['HD157832'] * len(obs_spec_arr)
+    be_flag_arr = [False] * len(obs_spec_arr)  # Comment out when running sdO models
+    obs_jd_arr = [2458731.9775, 2458750.7056, 2458772.2166, 2460195.9441, 2460024.5223, 2460244.1784]
     obs_date_arr = []
     for obs_time in obs_jd_arr:
         obs_date_arr.append(Time(obs_time, format='jd').fits.split('T')[0])
@@ -246,7 +246,7 @@ if __name__ == '__main__':
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
             executor.map(ccf_plot_heatmap, obs_spec_arr, col_arr, star_name_arr, obs_date_arr, be_flag_arr)
-    # ccf_plot_heatmap(obs_spec_arr[0], col_arr[0], star_name_arr[0], obs_date_arr[0], be_flag=True)
+    # ccf_plot_heatmap(obs_spec_arr[0], col_arr[0], star_name_arr[0], obs_date_arr[0], be_flag=False)
     t2 = time.perf_counter()
     print(f'Finished in \033[94m{round(t2 - t1, 2)}\033[0m second(s)')
 

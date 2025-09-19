@@ -5,6 +5,7 @@ from tqdm import tqdm
 from scipy.optimize import curve_fit
 import os
 from scipy.interpolate import interp1d
+import re
 
 def model_func(x, a, b, c, d, e, f):
     return a*x**5 + b*x**4 + c*x**3 + d*x**2 + e*x + f
@@ -34,7 +35,7 @@ def list_fits_files(directory):
 
 
 # Define the recursive sigma clipping function
-def recursive_sigma_clipping(wavelengths, fluxes, star_name, order, degree=5, sigma_threshold=3, max_iterations=10,
+def recursive_sigma_clipping(wavelengths, fluxes, star_name, obs_date, order, degree=5, sigma_threshold=3, max_iterations=10,
                              blaze_plots=False):
     """
     Perform a recursive sigma clipping algorithm to fit the continuum of spectral data using scipy curve_fit.
@@ -44,6 +45,7 @@ def recursive_sigma_clipping(wavelengths, fluxes, star_name, order, degree=5, si
         wavelengths (array-like): Array of wavelengths.
         fluxes (array-like): Array of flux values corresponding to the wavelengths.
         star_name (string): Name of star
+        obs_date (string): Observation date
         order (int or str): Echelle order number for blaze plotting
         degree (int): Degree of the polynomial used for fitting the continuum.
         sigma_threshold (float): Number of standard deviations to use as the clipping threshold.
@@ -112,7 +114,7 @@ def recursive_sigma_clipping(wavelengths, fluxes, star_name, order, degree=5, si
         ax.tick_params(axis='both', which='major', length=10, width=1)
         ax.yaxis.get_offset_text().set_size(20)
         ax.legend(loc="upper right", fontsize=18)
-        fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/Blaze_Function/{star_name}/{star_name}_{order}.pdf",
+        fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/Blaze_Function/{star_name}/{star_name}_{obs_date}_Order{order}.pdf",
                     bbox_inches="tight", dpi=300)
 
     return continuum_fit, mask
@@ -151,7 +153,7 @@ def velocity_grid(wavelengths, line_center):
     c = 3e5
     return c * (wavelengths - line_center) / line_center
 
-def find_zero_crossing_nearest_zero(x, y):
+def find_zero_crossing_nearest_zero(x, y, print_flag=False):
     """
     Finds the crossing point of a function where the sign changes from negative to positive, or vice versa, closest to
     x=0.
@@ -159,6 +161,7 @@ def find_zero_crossing_nearest_zero(x, y):
     Parameters:
         x: x values of function
         y: y values of function
+        print_flag: Flag to check if the function should print out the zero crossings
 
     Returns:
         x coordinate of crossing point nearest to x=0. Returns None if no zero-crossings found.
@@ -174,8 +177,49 @@ def find_zero_crossing_nearest_zero(x, y):
 
     if not zero_crossings:
         return None
-
+    if print_flag:
+        print([round(float(zero_crossings[i]), 3)
+               for i in range(len(zero_crossings))
+               if -100 < zero_crossings[i] < 100])
     return min(zero_crossings, key=lambda v: abs(v))
+
+def find_zero_crossing_steepest_near_zero(x, y, v_window=500):
+    """
+    Finds the zero-crossing with the steepest slope within a velocity window around 0.
+
+    Parameters:
+        x: array of x values (velocities, km/s)
+        y: array of y values (CCF)
+        v_window: half-width of velocity window (default=500 km/s)
+
+    Returns:
+        x coordinate of crossing point with steepest slope near 0.
+        None if no valid zero-crossings found in window.
+    """
+    zero_crossings = []
+    slopes = []
+    sign_changes = np.where(np.diff(np.sign(y)))[0]
+
+    for i in sign_changes:
+        x0, x1 = x[i], x[i+1]
+        y0, y1 = y[i], y[i+1]
+
+        # Linear interpolation to find zero crossing
+        x_zero = x0 - y0 * (x1 - x0) / (y1 - y0)
+
+        if abs(x_zero) > v_window:
+            continue  # skip crossings outside window
+
+        slope = (y1 - y0) / (x1 - x0)
+
+        zero_crossings.append(x_zero)
+        slopes.append(slope)
+
+    if not zero_crossings:
+        return None
+
+    idx = np.argmax(np.abs(slopes))
+    return zero_crossings[idx]
 
 
 def find_crossings(wavelength, flux, frac=0.25):
@@ -196,7 +240,7 @@ def find_crossings(wavelength, flux, frac=0.25):
     return [crossings[0], crossings[-1]], threshold
 
 
-def shafter_bisector_velocity(wavelengths, fluxes, line_center=6562.8, sep=10, sigma=5, v_window=5000, v_step=2.6):
+def shafter_bisector_velocity(wavelengths, fluxes, line_center=6562.8, sep=500, sigma=5, v_window=5000, v_step=2.6, print_flag=False):
     """
     Finds the bisector velocity of the wings of the H Alpha line in a 1D spectrum using the oppositely signed double
     Gaussian cross-correlation method of Shafter, A. W., Szkody, P., & Thorstensen, J. R. 1986, ApJ, 308, 765.
@@ -209,7 +253,7 @@ def shafter_bisector_velocity(wavelengths, fluxes, line_center=6562.8, sep=10, s
         sigma: Gaussian width
         v_window: ± velocity range to explore (in units of km/s)
         v_step: velocity step size (in units of km/s)
-
+        print_flag: Flag to check if the function should print out the zero crossings
     Returns:
         bisector_velocity: velocity at zero crossing closest to 0 (in km/s)
         v_grid: velocity shift grid
@@ -223,10 +267,9 @@ def shafter_bisector_velocity(wavelengths, fluxes, line_center=6562.8, sep=10, s
     flux_grid = interp_flux(v_grid)
 
     kernel = gaussian_pair(v_grid, sep=sep, sigma=sigma)
-
     ccf = np.correlate(flux_grid, kernel, mode="same")
 
-    bisector_velocity = find_zero_crossing_nearest_zero(v_grid, ccf)
+    bisector_velocity = find_zero_crossing_nearest_zero(v_grid, ccf, print_flag)
 
     return bisector_velocity, v_grid, ccf
 
@@ -279,6 +322,23 @@ def monte_carlo_bisector_error(
 
     return float(np.mean(v_all)), float(np.std(v_all, ddof=1)), v_all
 
+
+def clean_star_name(raw_name: str) -> str:
+    """
+    Cleans up the star name from a FITS file header to make it SIMBAD-friendly (i.e., remove trailing suffixes like
+    "_2", "_A", etc., and insert a space after "HD" if followed directly by digits)
+
+    :param raw_name: The "raw" star name from the FITS header
+
+    :return: The cleaned up name
+    """
+    # 1. Remove trailing suffixes like "_2", "_A", etc.
+    name = re.sub(r'_[A-Za-z0-9]+$', '', raw_name.strip())
+
+    # 2. Insert a space after "HD" if followed directly by digits
+    name = re.sub(r'^(HD)(\d+)', r'\1 \2', name)
+
+    return name
 
 if __name__ == '__main__':
     pass

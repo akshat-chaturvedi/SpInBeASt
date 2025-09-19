@@ -62,8 +62,8 @@ class ARCESSpectrum:
         try:
             self.bc_corr = get_BC_vel(JDUTC=self.obs_jd, starname=self.star_name, obsname="Apache Point Observatory",
                                       ephemeris="de430")[0][0]
-        except Exception as e:
-            print(f"{e}")
+        except:
+            # print(f"{e}")
             pass
 
         with open("APO_Spectra/APOInventory.txt", "r") as f:
@@ -263,7 +263,7 @@ class ARCESSpectrum:
                             bbox_inches="tight", dpi=300)
                 plt.close()
 
-    def radial_velocity_bisector(self, print_rad_vel=False):
+    def radial_velocity_bisector(self, print_rad_vel=False, print_crossings=False):
         """
         Obtains the radial velocity for a star by cross correlating two oppositely signed Gaussians to the H Alpha profile
         to sample the wings (similar to the bisector method as described in Wang, L. et al. AJ, 2023, 165, 203). It also
@@ -272,7 +272,7 @@ class ARCESSpectrum:
 
         Parameters:
             print_rad_vel (bool): Default=True, prints the radial velocity with the barycentric correction applied
-
+            print_crossings: Flag to check if the function should print out the zero crossings
         Returns:
             None
         """
@@ -289,30 +289,44 @@ class ARCESSpectrum:
         wavs = wavs[mask]
         fluxes = self.dat[mask]
 
-        v_bis, v_grid, ccf = shafter_bisector_velocity(wavs, fluxes, sep=10, sigma=5)
+        # cross, threshold = find_crossings(wavs, fluxes - 1)
+        # sep = cross[-1] - cross[0]
+        v_bis, v_grid, ccf = shafter_bisector_velocity(wavs, fluxes, print_flag=print_crossings)
+        print(f"RV for {self.star_name} -> {v_bis:.3f}")
+        # v_bis, v_grid, ccf = shafter_bisector_velocity(wavs, fluxes, sep=10, sigma=5)
 
-        # rad_vel_bc_corrected = v_bis - self.bc_corr/1000
+        sig_ind = np.where(wavs > 6600)[0]
+        sig_cont = np.std(fluxes[sig_ind] - 1)
+
+        err_v_bis = (np.sqrt(7) / np.log(4)) * sig_cont * np.sqrt(0.25 * (max(fluxes - 1)) * np.diff(wavs)[0] * 2.6)
+        try:
+            rad_vel_bc_corrected = v_bis + self.bc_corr / 1000  # self.bc_corr has a sign, so need to add (otherwise might add when negative)
+        except:
+            rad_vel_bc_corrected = v_bis
+            print(f"Barycentric Correction not applied: {self.star_name}")
         if print_rad_vel:
             print(f"Radial Velocity: \033[92m{v_bis:.3f} km/s\033[0m")
 
         plot_ind = np.where((np.array(fluxes) - 1) > 0.25 * max(np.array(fluxes) - 1))[0]
+        ccf_ind = np.where((v_grid > -500) & (v_grid < 500))[0]
 
-        fig, ax = plt.subplots(figsize=(20, 10))
-        ax.plot(((np.array(wavs) - 6562.8) / 6562.8) * 3e5, np.array(fluxes) - 1,
+        fig, ax = plt.subplots(2, 1, sharex=True, figsize=(20, 10), gridspec_kw={'height_ratios': [4, 1]})
+        plt.subplots_adjust(hspace=0)
+        fig.supxlabel("Radial Velocity [km s$^{-1}$]", fontsize=22, y=0.05)
+        ax[0].plot(((np.array(wavs) - 6562.8) / 6562.8) * 3e5, np.array(fluxes) - 1,
                 color="black", label="CCF")
-        ax.vlines(v_bis, 0.23 * max(fluxes - 1), 0.27 * max(fluxes - 1), color="r", zorder=1)
-        ax.hlines(0.25 * max(fluxes - 1), (((wavs - 6562.8) / 6562.8) * 3e5)[plot_ind[0]],
+        ax[0].vlines(v_bis, 0.23 * max(fluxes - 1), 0.27 * max(fluxes - 1), color="r", zorder=1)
+        ax[0].hlines(0.25 * max(fluxes - 1), (((wavs - 6562.8) / 6562.8) * 3e5)[plot_ind[0]],
                   (((wavs - 6562.8) / 6562.8) * 3e5)[plot_ind[-1]], color="k", alpha=0.8, zorder=0)
-        ax.tick_params(axis='x', labelsize=20)
-        ax.tick_params(axis='y', labelsize=20)
-        ax.tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
+        ax[0].tick_params(axis='x', labelsize=20)
+        ax[0].tick_params(axis='y', labelsize=20)
+        ax[0].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
                        width=1)
-        ax.set_xlabel("Radial Velocity [km s$^{-1}$]", fontsize=22)
-        ax.set_ylabel("Normalized Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=22)
-        ax.set_xlim(-500, 500)
-        ax.text(0.8, 0.8, fr"{self.star_name} H$\alpha$"
-                          f"\nHJD {self.obs_jd:.4f}\nRV = {v_bis:.3f} km/s",
-                color="k", fontsize=18, transform=ax.transAxes,
+        ax[0].set_ylabel("Normalized Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=22)
+        ax[0].set_xlim(-500, 500)
+        ax[0].text(0.78, 0.8, fr"{self.star_name} H$\alpha$"
+                          f"\nHJD {self.obs_jd:.4f}\nRV = {v_bis:.3f}±{err_v_bis:.3f} km/s",
+                color="k", fontsize=18, transform=ax[0].transAxes,
                 bbox=dict(
                     facecolor='white',  # Box background color
                     edgecolor='black',  # Box border color
@@ -322,17 +336,34 @@ class ARCESSpectrum:
                 )
         # ax.set_title("Cross Correlation Function w/ Gaussian Fit", fontsize=26)
         # ax.legend(loc="upper right", fontsize=22)
+        ax[1].plot(v_grid[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=2)
+        ax[1].set_ylabel("CCF", fontsize=22)
+        ax[1].hlines(0, min(v_grid[ccf_ind]), max(v_grid[ccf_ind]), color="k", linestyle="--", zorder=0)
+        ax[1].set_ylim(-1, 1)
+        ax[1].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
+                          width=1)
         fig.savefig(f"APO_Spectra/SpectrumPlots/RV_HAlpha_Bisector/RV_{self.star_name}_{self.obs_date}.pdf",
                     bbox_inches="tight", dpi=300)
         plt.close()
 
         if not os.path.exists("APO_Spectra/APOInventoryRV_Bisector.txt"):
             with open("APO_Spectra/APOInventoryRV_Bisector.txt", "w") as file:
-                file.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{v_bis:.3f}\n")
+                file.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{rad_vel_bc_corrected:.3f},{err_v_bis:.5f}\n")
         else:
             with open("APO_Spectra/APOInventoryRV_Bisector.txt", "r") as f:
                 jds = f.read().splitlines()
 
             if not any(str(self.obs_jd) in line for line in jds):
                 with open("APO_Spectra/APOInventoryRV_Bisector.txt", "a") as f:
-                    f.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{v_bis:.3f}\n")
+                    f.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{rad_vel_bc_corrected:.3f},{err_v_bis:.5f}\n")
+
+        if not os.path.exists(f"APO_Spectra/RV_Measurements/{self.star_name}_RV.txt"):
+            with open(f"APO_Spectra/RV_Measurements/{self.star_name}_RV.txt", "w") as file:
+                file.write(f"{self.obs_jd},{rad_vel_bc_corrected:.3f},{err_v_bis:.5f}\n")
+        else:
+            with open(f"APO_Spectra/RV_Measurements/{self.star_name}_RV.txt", "r") as f:
+                jds = f.read().splitlines()
+
+            if not any(str(self.obs_jd) in line for line in jds):
+                with open(f"APO_Spectra/RV_Measurements/{self.star_name}_RV.txt", "a") as f:
+                    f.write(f"{self.obs_jd},{rad_vel_bc_corrected:.3f},{err_v_bis:.5f}\n")

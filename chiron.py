@@ -56,15 +56,17 @@ class CHIRONSpectrum:
             self.hdr = hdul[0].header
 
         # Getting name of star from FITS file header
-        self.star_name = self.hdr["OBJECT"]
-
+        self.star_name = clean_star_name(self.hdr["OBJECT"])
         # Obtaining JD UTC time of observation
         self.obs_date = self.hdr["EMMNWOB"].split("T")[0]
         self.obs_jd = Time(self.hdr["EMMNWOB"], format='isot', scale='utc').jd
 
         # Get BC correction using barycorrpy package in units of m/s
-        self.bc_corr = get_BC_vel(JDUTC=self.obs_jd, starname=self.star_name, obsname="CTIO", ephemeris="de430")[0][0]
-
+        try:
+            self.bc_corr = get_BC_vel(JDUTC=self.obs_jd, starname=self.star_name, obsname="CTIO", ephemeris="de430")[0][0]
+        except:
+            self.bc_corr = 0
+            print(f"WARNING: BC Not Found for {self.star_name}!")
         # Append to inventory file containing star name and observation JD time
         with open("CHIRON_Spectra/StarSpectra/CHIRONInventory.txt", "r") as f:
             jds = f.read().splitlines()
@@ -100,10 +102,10 @@ class CHIRONSpectrum:
                 fluxes.append(self.dat[37][j][1])
 
             if self.star_name == 'HR 2142' and self.obs_date == '2024-12-13':
-                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=38,
+                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, self.obs_date, order=38,
                                                                degree=3, sigma_threshold=3, blaze_plots=True)
             else:
-                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=38,
+                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, self.obs_date, order=38,
                                                                degree=5, sigma_threshold=3, blaze_plots=True)
             wavs = np.array(wavs)
             fluxes = np.array(fluxes)
@@ -144,7 +146,7 @@ class CHIRONSpectrum:
                 wavs.append(self.dat[7][j][0])
                 fluxes.append(self.dat[7][j][1])
 
-            continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=8,
+            continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, self.obs_date, order=8,
                                                            degree=5, sigma_threshold=3, blaze_plots=True)
             wavs = np.array(wavs)
             fluxes = np.array(fluxes)
@@ -185,10 +187,10 @@ class CHIRONSpectrum:
                 fluxes.append(self.dat[38][j][1])
 
             if self.star_name == 'HR 2142' and self.obs_date == '2024-12-13':
-                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=39,
+                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, self.obs_date, order=39,
                                                                degree=3, sigma_threshold=3, blaze_plots=True)
             else:
-                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=39,
+                continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, self.obs_date, order=39,
                                                                degree=5, sigma_threshold=3, blaze_plots=True)
             wavs = np.array(wavs)
             fluxes = np.array(fluxes)
@@ -233,10 +235,10 @@ class CHIRONSpectrum:
                     fluxes.append(self.dat[i][j][1])
 
                 if self.star_name == "HR 2142" and self.obs_date == "2024-12-13":
-                    continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=f"{i + 1}",
+                    continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, self.obs_date, order=f"{i + 1}",
                                                                    degree=3, sigma_threshold=3)
                 else:
-                    continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, order=f"{i + 1}",
+                    continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, self.obs_date, order=f"{i + 1}",
                                                                    degree=5, sigma_threshold=3)
                 total_wavs.append(wavs)
                 fluxes = np.array(fluxes)
@@ -286,7 +288,7 @@ class CHIRONSpectrum:
         Parameters:
             h_alpha (bool): Default=True, plots the multi-epoch orders of the spectra containing H Alpha 6563 Å (order 37)
             h_beta (bool): Default=True, plots the multi-epoch orders of the spectra containing H Beta 4862 Å (order 7)
-
+            he_I_6678 (bool): Default=True, plots the multi-epoch orders of the spectra containing He I 6678 Å (order 38)
         Returns:
             None
         """
@@ -359,7 +361,7 @@ class CHIRONSpectrum:
                 plt.rcParams['font.family'] = 'Geneva'
                 fig, ax = plt.subplots(figsize=(20, 10))
                 # colors = ["k", "r"]
-                cmap = cm.devon  # or cm.roma, cm.lajolla, etc.
+                cmap = cm.roma  # or cm.roma, cm.lajolla, etc.
                 N = len(wavs)  # Number of colors (e.g., for 10 lines)
                 colors = [cmap(i / N) for i in range(N)]
                 for i in range(len(wavs)):
@@ -401,7 +403,7 @@ class CHIRONSpectrum:
                 plt.rcParams['font.family'] = 'Geneva'
                 fig, ax = plt.subplots(figsize=(20, 10))
                 # colors = ["k", "r"]
-                cmap = cm.devon  # or cm.roma, cm.lajolla, etc.
+                cmap = cm.roma  # or cm.roma, cm.lajolla, etc.
                 N = len(wavs)  # Number of colors (e.g., for 10 lines)
                 colors = [cmap(i / N) for i in range(N)]
                 for i in range(len(wavs)):
@@ -516,7 +518,7 @@ class CHIRONSpectrum:
                 with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV.txt", "a") as f:
                     f.write(f"{self.star_name},{self.obs_jd},{self.obs_date},{rad_vel:.3f}\n")
 
-    def radial_velocity_bisector(self, print_rad_vel=False):
+    def radial_velocity_bisector(self, print_rad_vel=False, print_crossings=False):
         """
         Obtains the radial velocity for a star by cross correlating two oppositely signed Gaussians to the H Alpha profile
         to sample the wings (similar to the bisector method as described in Wang, L. et al. AJ, 2023, 165, 203). It also
@@ -524,8 +526,8 @@ class CHIRONSpectrum:
         then applies a barycentric correction to the derived radial velocity, and writes it into a datafile.
 
         Parameters:
-            print_rad_vel (bool): Default=True, prints the radial velocity with the barycentric correction applied
-
+            print_rad_vel (bool): Default=False, prints the radial velocity with the barycentric correction applied
+            print_crossings: Flag to check if the function should print out the zero crossings
         Returns:
             None
         """
@@ -543,40 +545,42 @@ class CHIRONSpectrum:
         fluxes = np.array(spec[f"{h_alpha_order}"]["Fluxes"])  # Read in H Alpha order fluxes
 
         # v_bis, v_grid, ccf = shafter_bisector_velocity(wavs, fluxes, sep=10, sigma=5)
-        cross, threshold = find_crossings(wavs, fluxes - 1)
-        sep = cross[-1] - cross[0]
-        v_bis, v_grid, ccf = shafter_bisector_velocity(wavs, fluxes, sep=sep)
+        # cross, threshold = find_crossings(wavs, fluxes - 1)
+        v_bis, v_grid, ccf = shafter_bisector_velocity(wavs, fluxes, print_flag=print_crossings)
 
         sig_ind = np.where(wavs > 6600)[0]
         sig_cont = np.std(fluxes[sig_ind] - 1)
 
         err_v_bis = (np.sqrt(7)/np.log(4)) * sig_cont * np.sqrt(0.25*(max(fluxes-1))*np.diff(wavs)[0] * 2.6)
-        breakpoint()
-        rad_vel_bc_corrected = v_bis - self.bc_corr/1000
+        rad_vel_bc_corrected = v_bis + self.bc_corr/1000  # self.bc_corr has a sign, so need to add (otherwise might add when negative)
         if print_rad_vel:
             print(f"Radial Velocity: \033[92m{rad_vel_bc_corrected:.3f} km/s\033[0m")
 
         plot_ind = np.where((((np.array(wavs) - 6562.8) / 6562.8) * 3e5 > -500) &
                             (((np.array(wavs) - 6562.8) / 6562.8) * 3e5 < 500) &
                             ((np.array(fluxes) - 1) > 0.25 * max(np.array(fluxes) - 1)))[0]
+        ccf_ind = np.where((v_grid > -500) & (v_grid < 500))[0]
         # plot_ind = np.where((np.array(fluxes[plot_ind1]) - 1) > 0.25 * max(np.array(fluxes[plot_ind1]) - 1))[0]
 
-        fig, ax = plt.subplots(figsize=(20, 10))
-        ax.plot(((np.array(wavs) - 6562.8) / 6562.8) * 3e5, np.array(fluxes) - 1,
+        fig, ax = plt.subplots(2,1, sharex=True, figsize=(20, 10), gridspec_kw={'height_ratios': [4, 1]})
+        plt.subplots_adjust(hspace=0)
+        fig.supxlabel("Radial Velocity [km s$^{-1}$]", fontsize=22, y=0.05)
+        ax[0].plot(((np.array(wavs) - 6562.8) / 6562.8) * 3e5, np.array(fluxes) - 1,
                 color="black", label="CCF")
-        ax.vlines(v_bis, 0.23 * max(fluxes - 1), 0.27 * max(fluxes - 1), color="r", zorder=1)
-        ax.hlines(0.25 * max(fluxes - 1), (((wavs - 6562.8) / 6562.8) * 3e5)[plot_ind[0]],
+        # ax[0].plot(v_grid, ker, c="r")
+        ax[0].vlines(v_bis, 0.23 * max(fluxes - 1), 0.27 * max(fluxes - 1), color="r", zorder=1)
+        ax[0].hlines(0.25 * max(fluxes - 1), (((wavs - 6562.8) / 6562.8) * 3e5)[plot_ind[0]],
                   (((wavs - 6562.8) / 6562.8) * 3e5)[plot_ind[-1]], color="k", alpha=0.8, zorder=0)
-        ax.tick_params(axis='x', labelsize=20)
-        ax.tick_params(axis='y', labelsize=20)
-        ax.tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
+        ax[0].tick_params(axis='x', labelsize=20)
+        ax[0].tick_params(axis='y', labelsize=20)
+        ax[0].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
                        width=1)
-        ax.set_xlabel("Radial Velocity [km s$^{-1}$]", fontsize=22)
-        ax.set_ylabel("Normalized Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=22)
-        ax.set_xlim(-500, 500)
-        ax.text(0.78, 0.8, fr"{self.star_name} H$\alpha$"
+        # ax.set_xlabel("Radial Velocity [km s$^{-1}$]", fontsize=22)
+        ax[0].set_ylabel("Normalized Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=22)
+        ax[0].set_xlim(-500, 500)
+        ax[0].text(0.78, 0.8, fr"{self.star_name} H$\alpha$"
                           f"\nHJD {self.obs_jd:.4f}\nRV = {v_bis:.3f}±{err_v_bis:.3f} km/s",
-                color="k", fontsize=18, transform=ax.transAxes,
+                color="k", fontsize=18, transform=ax[0].transAxes,
                 bbox=dict(
                     facecolor='white',  # Box background color
                     edgecolor='black',  # Box border color
@@ -584,8 +588,15 @@ class CHIRONSpectrum:
                     alpha=0.9  # Slight transparency
                 )
                 )
+        ax[1].plot(v_grid[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=2)
+        ax[1].set_ylabel("CCF", fontsize=22)
+        ax[1].hlines(0, min(v_grid[ccf_ind]), max(v_grid[ccf_ind]), color="k", linestyle="--", zorder=0)
+        ax[1].set_ylim(-1, 1)
+        ax[1].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
+                          width=1)
         # ax.set_title("Cross Correlation Function w/ Gaussian Fit", fontsize=26)
         # ax.legend(loc="upper right", fontsize=22)
+        # ax.set_ylim(-0.1, max(fluxes - 1)+0.2)
         fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/RV_HAlpha_Bisector/RV_{self.star_name}_{self.obs_date}.pdf",
                     bbox_inches="tight", dpi=300)
         plt.close()
