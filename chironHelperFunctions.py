@@ -6,6 +6,7 @@ from scipy.optimize import curve_fit
 import os
 from scipy.interpolate import interp1d
 import re
+from astropy.stats import sigma_clipped_stats
 
 def model_func(x, a, b, c, d, e, f):
     return a*x**5 + b*x**4 + c*x**3 + d*x**2 + e*x + f
@@ -183,64 +184,46 @@ def find_zero_crossing_nearest_zero(x, y, print_flag=False):
                if -100 < zero_crossings[i] < 100])
     return min(zero_crossings, key=lambda v: abs(v))
 
-def find_zero_crossing_steepest_near_zero(x, y, v_window=500):
+def find_all_crossings(x, y, level):
     """
-    Finds the zero-crossing with the steepest slope within a velocity window around 0.
-
-    Parameters:
-        x: array of x values (velocities, km/s)
-        y: array of y values (CCF)
-        v_window: half-width of velocity window (default=500 km/s)
-
-    Returns:
-        x coordinate of crossing point with steepest slope near 0.
-        None if no valid zero-crossings found in window.
+    Return all x-locations where y crosses 'level'.
+    Linear interpolation is used between points.
     """
-    zero_crossings = []
-    slopes = []
-    sign_changes = np.where(np.diff(np.sign(y)))[0]
-
-    for i in sign_changes:
-        x0, x1 = x[i], x[i+1]
-        y0, y1 = y[i], y[i+1]
-
-        # Linear interpolation to find zero crossing
-        x_zero = x0 - y0 * (x1 - x0) / (y1 - y0)
-
-        if abs(x_zero) > v_window:
-            continue  # skip crossings outside window
-
-        slope = (y1 - y0) / (x1 - x0)
-
-        zero_crossings.append(x_zero)
-        slopes.append(slope)
-
-    if not zero_crossings:
-        return None
-
-    idx = np.argmax(np.abs(slopes))
-    return zero_crossings[idx]
-
-
-def find_crossings(wavelength, flux, frac=0.25):
-    # Find threshold
-    peak = flux.max()
-    threshold = frac * peak
-
     crossings = []
-    for i in range(len(flux)-1):
-        f1, f2 = flux[i], flux[i+1]
-        if (f1-threshold) * (f2-threshold) < 0:  # sign change
-            # Linear interpolation for crossing
-            w1, w2 = wavelength[i], wavelength[i+1]
-            slope = (f2 - f1) / (w2 - w1)
-            crossing = w1 + (threshold - f1) / slope
-            crossings.append(crossing)
+    s = y - level
+    idx = np.where(np.diff(np.sign(s)) != 0)[0]
 
-    return [crossings[0], crossings[-1]], threshold
+    for i in idx:
+        x0, x1 = x[i], x[i+1]
+        y0, y1 = s[i], s[i+1]
+        xc = x0 - y0*(x1 - x0)/(y1 - y0)
+        crossings.append(xc)
 
+    return np.array(crossings)
 
-def shafter_bisector_velocity(wavelengths, fluxes, line_center=6562.8, sep=500, sigma=5, v_window=5000, v_step=2.6, print_flag=False):
+def estimate_sep_from_25pct(wavelengths, fluxes, line_center):
+    """
+    Returns Gaussian separation SEP based on the two *outermost*
+    crossings of the 25% flux level.
+    """
+    # define 25% level between min and max
+    fmin, fmax = np.min(fluxes), np.max(fluxes)
+    f25 = fmin + 0.25*(fmax - fmin)
+
+    # find all crossings
+    crossings = find_all_crossings(wavelengths, fluxes, f25)
+    if len(crossings) < 2:
+        return None  # cannot determine sep
+
+    left, right = crossings[0], crossings[-1]
+
+    # convert to velocities
+    v = velocity_grid(crossings, line_center)
+    sep = abs(v[-1] - v[0])
+
+    return sep
+
+def shafter_bisector_velocity(wavelengths, fluxes, line_center=6562.8, sep=500, v_window=5000, v_step=2.6, print_flag=False):
     """
     Finds the bisector velocity of the wings of the H Alpha line in a 1D spectrum using the oppositely signed double
     Gaussian cross-correlation method of Shafter, A. W., Szkody, P., & Thorstensen, J. R. 1986, ApJ, 308, 765.
@@ -250,7 +233,6 @@ def shafter_bisector_velocity(wavelengths, fluxes, line_center=6562.8, sep=500, 
         fluxes: array of input fluxes
         line_center: rest wavelength of H Alpha (6562.8 Å)
         sep: separation of the Gaussian pair
-        sigma: Gaussian width
         v_window: ± velocity range to explore (in units of km/s)
         v_step: velocity step size (in units of km/s)
         print_flag: Flag to check if the function should print out the zero crossings
@@ -260,8 +242,15 @@ def shafter_bisector_velocity(wavelengths, fluxes, line_center=6562.8, sep=500, 
         ccf: cross-correlation function values
 
     """
+    if sep is None:
+        sep = estimate_sep_from_25pct(wavelengths, fluxes, line_center)
+        if sep is None:
+            raise ValueError("Could not determine Gaussian separation from 25% crossings.")
+
+    sigma = sep/(7*np.sqrt(2*np.log(2)))
+
     v_obs = velocity_grid(wavelengths, line_center)
-    interp_flux = interp1d(v_obs, fluxes, kind="linear", bounds_error=False, fill_value=0)
+    interp_flux = interp1d(v_obs, fluxes-1, kind="linear", bounds_error=False, fill_value=0)
 
     v_grid = np.arange(-v_window, v_window+v_step, v_step)
     flux_grid = interp_flux(v_grid)
@@ -271,7 +260,7 @@ def shafter_bisector_velocity(wavelengths, fluxes, line_center=6562.8, sep=500, 
 
     bisector_velocity = find_zero_crossing_nearest_zero(v_grid, ccf, print_flag)
 
-    return bisector_velocity, v_grid, ccf
+    return bisector_velocity, v_grid, ccf, sigma
 
 
 def monte_carlo_bisector_error(
@@ -325,20 +314,309 @@ def monte_carlo_bisector_error(
 
 def clean_star_name(raw_name: str) -> str:
     """
-    Cleans up the star name from a FITS file header to make it SIMBAD-friendly (i.e., remove trailing suffixes like
-    "_2", "_A", etc., and insert a space after "HD" if followed directly by digits)
-
-    :param raw_name: The "raw" star name from the FITS header
-
-    :return: The cleaned up name
+    Cleans up the star name from a FITS file header to make it SIMBAD-friendly:
+      - Removes trailing suffixes like "_2", "_A", etc.
+      - Normalizes spacing and removes dashes
+      - Keeps only the HD/HR/HIP number (discarding extra designations)
+      - Ensures the catalog prefix is uppercase
     """
-    # 1. Remove trailing suffixes like "_2", "_A", etc.
-    name = re.sub(r'_[A-Za-z0-9]+$', '', raw_name.strip())
+    name = raw_name.strip()
 
-    # 2. Insert a space after "HD" if followed directly by digits
-    name = re.sub(r'^(HD)(\d+)', r'\1 \2', name)
+    # 1. Remove trailing suffixes like "_2", "_A", etc.
+    name = re.sub(r'_[A-Za-z0-9]+$', '', name)
+
+    # 2. Capture only the first occurrence of HD/HR/HIP + number
+    match = re.search(r'\b(HD|HR|HIP)[-\s]?(\d+)', name, re.IGNORECASE)
+    if match:
+        # Normalize prefix to uppercase and ensure space between prefix and number
+        prefix = match.group(1).upper()
+        number = match.group(2)
+        name = f"{prefix} {number}"
+    else:
+        # If no HD/HR/HIP prefix found, just clean minor formatting
+        name = re.sub(r'[-_]+', ' ', name)
 
     return name
+
+def clean_star_name_2(raw_name: str) -> str:
+    """
+    Cleans up the star name from a FITS file header to make it SIMBAD-friendly:
+      - Remove trailing suffixes like "_2", "_A", etc.
+      - Normalize spacing
+      - Remove dashes between catalog prefixes (HD/HR/HIP) and numbers
+      - Keep only the HD/HR/HIP number, discarding extra designations
+    """
+    name = raw_name.strip()
+
+    # 1. Remove trailing suffixes like "_2", "_A", etc.
+    name = re.sub(r'_[A-Za-z0-9]+$', '', name)
+
+    # 2. Capture only the first occurrence of HD/HR/HIP + number
+    match = re.search(r'\b(HD|HR|HIP)[-\s]?(\d+)', name, re.IGNORECASE)
+    if match:
+        # Keep just "HD 12345" (or HR/HIP)
+        name = f"{match.group(1).upper()} {match.group(2)}"
+    else:
+        # If no match, leave it as-is (after suffix cleanup)
+        return name
+
+    return name
+
+# ============================================================
+# Greek mapping: (regex pattern) → Greek letter
+# ============================================================
+GREEK_MAP = {
+    r"(alpha|alp|alf)": "α",
+    r"(beta|bet)": "β",
+    r"(gamma|gam)": "γ",
+    r"(delta|del)": "δ",
+    r"(epsilon|eps)": "ε",
+    r"(zeta|zet)": "ζ",
+    r"(eta)": "η",
+    r"(theta|the|tet)": "θ",
+    r"(iota|iot)": "ι",
+    r"(kappa|kap)": "κ",
+    r"(lambda|lam)": "λ",
+    r"(mu)": "μ",
+    r"(nu)": "ν",
+    r"(xi)": "ξ",
+    r"(omicron|omi)": "ο",
+    r"(pi)": "π",
+    r"(rho)": "ρ",
+    r"(sigma|sig)": "σ",
+    r"(tau|ta)": "τ",
+    r"(upsilon|ups)": "υ",
+    r"(phi|phe)": "φ",
+    r"(chi|che)": "χ",
+    r"(psi|ps)": "ψ",
+    r"(omega|ome)": "ω",
+}
+
+# Superscript map for numbered Bayer designations
+SUP = {"0":"⁰","1":"¹","2":"²","3":"³","4":"⁴","5":"⁵","6":"⁶","7":"⁷","8":"⁸","9":"⁹"}
+def to_superscript(num: str) -> str:
+    """Convert digits to superscript Unicode."""
+    return "".join(SUP.get(ch, ch) for ch in num)
+
+
+# ============================================================
+# Greek handling
+# ============================================================
+def convert_greek_with_index(name: str) -> str:
+    """
+    Convert forms like 'kappa01 Aps' → 'κ¹ Aps'
+    Must run BEFORE plain Greek conversion.
+    """
+    for pat, greek in GREEK_MAP.items():
+        # Look for Greek token + digits at start, e.g., kappa01
+        m = re.match(rf"^{pat}(\d{{1,2}})\b", name, flags=re.IGNORECASE)
+        if m:
+            idx = m.group(2) if m.lastindex >= 2 else None
+            if idx:
+                sup = to_superscript(idx.lstrip("0"))
+                return re.sub(
+                    rf"^{pat}(\d{{1,2}})",
+                    greek + sup,
+                    name,
+                    flags=re.IGNORECASE,
+                )
+    return name
+
+
+def convert_greek_plain(name: str) -> str:
+    """
+    Convert simple spellings like 'alpha Per' → 'α Per'
+    Must run AFTER convert_greek_with_index().
+    """
+    for pat, greek in GREEK_MAP.items():
+        name = re.sub(rf"^{pat}", greek, name, flags=re.IGNORECASE)
+    return name
+
+
+# ============================================================
+# Main function
+# ============================================================
+def clean_star_name3(raw_name: str) -> str:
+    """
+    Clean star name to SIMBAD-friendly form.
+
+    Rules:
+    - Remove trailing suffixes (_A, _2, etc.)
+    - If HD/HIP/HR + number is present → return only that (truncate rest)
+    - Convert bayer names → Greek letters (e.g. 'alpha Per' → 'α Per')
+    - Support Bayer + index (e.g. 'kappa01 Aps' → 'κ¹ Aps')
+    - Remove dashes
+    - Normalize whitespace
+    """
+    name = raw_name.strip()
+
+    # 1) Remove trailing suffix: _A, _2, etc.
+    name = re.sub(r"_[A-Za-z0-9]+$", "", name)
+
+    # 2) Detect HD/HR/HIP + number; keep only this
+    m = re.search(r"\b(HD|HR|HIP)[-\s]?(\d+)", name, re.IGNORECASE)
+    if m:
+        return f"{m.group(1).upper()} {m.group(2)}"
+
+    # If no HD/HR/HIP, continue into Greek handling
+
+    # 3) Remove dashes between tokens
+    name = name.replace("-", " ")
+
+    # 4) Bayer with enumeration first
+    name = convert_greek_with_index(name)
+
+    # 5) Plain Greek token second
+    name = convert_greek_plain(name)
+
+    # 6) Normalize whitespace
+    name = re.sub(r"\s+", " ", name)
+
+    return name.strip()
+
+
+
+def robust_A_topN(fluxes, N=5):
+    """
+    Return robust amplitude A (median of top N pixels) and the indices used.
+    Assumes fluxes are continuum-normalized to 1 (not continuum-subtracted).
+    """
+    arr = np.array(fluxes) - 1.0  # work in continuum-subtracted units
+    # handle case N > number of pixels
+    Nuse = min(N, arr.size)
+    top_idxs = np.argsort(arr)[-Nuse:]
+    A_topN = np.median(arr[top_idxs])
+    return A_topN, top_idxs
+
+def estimate_A_err_by_noise_injection(fluxes, sig_cont, N=5, M=500, rng=None):
+    """
+    Estimate uncertainty of amplitude estimator (median(top N)) by adding white noise M times.
+    Returns (A_median, A_err).
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+    arr = np.array(fluxes) - 1.0
+    A_samps = np.empty(M)
+    for i in range(M):
+        noisy = arr + rng.normal(0.0, sig_cont, size=arr.size)
+        A_samps[i] = np.median(noisy[np.argsort(noisy)[-min(N, arr.size):]])
+    return np.median(A_samps), np.std(A_samps, ddof=1)
+
+def analytic_sigma_v_mc_from_nonparam(wavs, fluxes,
+                                      gaussian_width_kms,
+                                      p=0.25,
+                                      Ntop=5,
+                                      M_inject=500,
+                                      MC_samples=2000,
+                                      cont_windows=None,
+                                      rng_seed=123):
+    """
+    Combine robust amplitude estimate + noise injection + analytic MC for sigma_v.
+    - wavs: wavelength array (Å)
+    - fluxes: flux array (continuum-normalized to 1)
+    - gaussian_width_kms: sigma (in km/s) used in analytic formula (your gaussian_width)
+    - cont_windows: list of (min,max) tuples to use to measure continuum RMS; if None, defaults used relative to Halpha
+    Returns dictionary with MC distribution and summary.
+    """
+    rng = np.random.default_rng(rng_seed)
+    lam0 = 6562.8
+
+    # 1) continuum windows default if not provided
+    if cont_windows is None:
+        cont_windows = [(lam0 + 50, lam0 + 200), (lam0 - 200, lam0 - 50)]
+    cont_mask = np.zeros_like(wavs, dtype=bool)
+    for (a, b) in cont_windows:
+        cont_mask |= ((wavs > a) & (wavs < b))
+
+    # robust continuum RMS (in continuum-subtracted units)
+    cont_vals = (np.array(fluxes)[cont_mask] - 1.0)
+    _, _, sig_cont = sigma_clipped_stats(cont_vals, sigma=3.0, maxiters=5)
+    # fall back if empty
+    if np.isnan(sig_cont) or sig_cont <= 0:
+        sig_cont = np.std(cont_vals) if cont_vals.size > 0 else 0.01
+
+    # 2) robust A and estimate A_err via noise injection
+    A0, topidxs = robust_A_topN(fluxes, N=Ntop)
+    A_med, A_err = estimate_A_err_by_noise_injection(fluxes, sig_cont, N=Ntop, M=M_inject, rng=rng)
+
+    # if A is extremely small or negative, guard
+    A0 = max(A0, 1e-8)
+    A_med = max(A_med, 1e-8)
+    A_err = max(A_err, 1e-8)
+
+    # 3) estimate uncertainty on sigma_g (if you have sep uncertainty, use it; otherwise assume small relative error)
+    # simple conservative choice: 5% relative uncertainty on gaussian_width (tweak as needed)
+    sigma_g_kms = float(gaussian_width_kms)
+    sigma_g_err = 0.05 * sigma_g_kms
+
+    # 4) analytic MC: sample sig_cont, A, sigma_g
+    # choose sig_cont uncertainty: you can use sqrt(2/Npix) or a fraction. Use 10% as conservative baseline.
+    sig_cont_err = 0.10 * sig_cont
+
+    # draw samples
+    sig_cont_samps = rng.normal(sig_cont, max(sig_cont_err, 1e-12), size=MC_samples)
+    A_samps = rng.normal(A_med, max(A_err, 1e-12), size=MC_samples)
+    A_samps = np.clip(A_samps, 1e-12, None)
+    sigma_g_samps = rng.normal(sigma_g_kms, max(sigma_g_err, 1e-12), size=MC_samples)
+    sigma_g_samps = np.clip(sigma_g_samps, 1e-12, None)
+
+    sqrtterm = np.sqrt(-2.0 * np.log(p))
+    sigma_v_samps = (sig_cont_samps * sigma_g_samps) / (A_samps * p * sqrtterm)
+
+    # summary
+    med = np.median(sigma_v_samps)
+    lo68, hi68 = np.percentile(sigma_v_samps, [16, 84])
+    lo95, hi95 = np.percentile(sigma_v_samps, [2.5, 97.5])
+
+    return {
+        "sigma_v_samps": sigma_v_samps,
+        "sigma_v_median": med,
+        "sigma_v_68": (lo68, hi68),
+        "sigma_v_95": (lo95, hi95),
+        "A0": A0,
+        "A_med": A_med,
+        "A_err": A_err,
+        "sig_cont": sig_cont,
+        "sigma_g_kms": sigma_g_kms
+        }
+
+def wav_corr(wav, bar_vel, rv_vel):
+    """
+    Correct a stellar spectrum to the barycentric velocity of the solar system, adapted from the original by Sebastián
+    Carrazco Gaxiola.
+
+    :param wav: The "raw" wavelength grid
+    :param bar_vel: The barycentric velocity
+    :param rv_vel: The radial velocity of the star
+    :return: Corrected wavelength grid, coefficient of correction
+    """
+
+    c = 299792458.0  # m/s
+
+    vel = float(bar_vel) - float(rv_vel)
+    corr_coef = ((c - vel) / c)
+
+    dlamb = wav / np.array(corr_coef)
+
+    return dlamb, corr_coef
+
+
+def make_vel_wav_transforms(rest_wavelength):
+    """
+    Returns (wav_to_vel, vel_to_wav) functions for a given rest wavelength.
+    rest_wavelength in Angstroms.
+    """
+
+    c = 3e5  # km/s
+
+    def wav_to_vel(w):
+        return ( (w - rest_wavelength) / rest_wavelength ) * c
+
+    def vel_to_wav(v):
+        return v / c * rest_wavelength + rest_wavelength
+
+    return wav_to_vel, vel_to_wav
+
 
 if __name__ == '__main__':
     pass
@@ -381,5 +659,3 @@ if __name__ == '__main__':
     # # # ax.plot(wavelengths, fluxes)
     # # ax.plot(wavelengths, fluxes/continuum_fit, 'k', label='Original Data')
     # # fig.savefig("trial.pdf", bbox_inches="tight", dpi=300)
-
-

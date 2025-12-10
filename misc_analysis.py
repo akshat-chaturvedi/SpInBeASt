@@ -8,7 +8,52 @@ from astropy.visualization import quantity_support
 from astropy.table import Table
 from astropy.io import ascii
 from cmcrameri import cm
+import json
 quantity_support()
+
+def add_constellations(ax, geojson_data, label_fontsize=8):
+    for feature in geojson_data['features']:
+        name = feature['id']  # constellation name
+        multi_lines = feature['geometry']['coordinates']
+
+        all_ra = []
+        all_dec = []
+
+        for line in multi_lines:
+            if len(line) < 2:
+                continue
+            ra = np.array([p[0] for p in line])
+            dec = np.array([p[1] for p in line])
+
+            # wrap RA to [-180, 180]
+            ra_wrapped = ((ra + 180) % 360) - 180
+
+            all_ra.extend(ra_wrapped)
+            all_dec.extend(dec)
+
+            # split lines across RA wrap as before
+            split_indices = np.where(np.abs(np.diff(ra_wrapped)) > 180)[0]
+            start = 0
+            for idx in split_indices:
+                coords = SkyCoord(ra_wrapped[start:idx+1]*u.deg, dec[start:idx+1]*u.deg, frame='icrs')
+                ra_r = -coords.ra.wrap_at('180d').radian
+                dec_r = coords.dec.radian
+                ax.plot(ra_r, dec_r, color='gray', linewidth=0.6, alpha=0.5, zorder=1)
+                start = idx+1
+
+            # final segment
+            coords = SkyCoord(ra_wrapped[start:]*u.deg, dec[start:]*u.deg, frame='icrs')
+            ra_r = -coords.ra.wrap_at('180d').radian
+            dec_r = coords.dec.radian
+            ax.plot(ra_r, dec_r, color='gray', linewidth=0.6, alpha=0.5, zorder=1)
+
+        # add label at centroid
+        if len(all_ra) > 0:
+            centroid_coord = SkyCoord(np.mean(all_ra)*u.deg, np.mean(all_dec)*u.deg, frame='icrs')
+            ra_r = -centroid_coord.ra.wrap_at('180d').radian
+            dec_r = centroid_coord.dec.radian
+            ax.text(ra_r, dec_r, name, fontsize=label_fontsize, color='black', alpha=0.7,
+                    ha='center', va='center', zorder=3)
 
 def sky_plot(interactive=False):
     dat = pd.read_fwf("sim-id", header=None)
@@ -62,6 +107,9 @@ def sky_plot(interactive=False):
     cursor = mplcursors.cursor(scatter, hover=True)
     cursor.connect("add", lambda sel: sel.annotation.set_text(star_names[sel.index]))
     ax.set_title("Be+sdOB Targets", fontsize=20)
+    with open("constellations_lines.json", "r") as f:
+        constellation_data = json.load(f)
+    add_constellations(ax, constellation_data)
 
     if interactive:
         plt.show()
@@ -87,3 +135,5 @@ def rv_plotter(filename):
     fig.savefig(f"CHIRON_Spectra/StarSpectra/RV_Measurements/RV_{star_name}.pdf", bbox_inches="tight",
                 dpi=300)
     plt.close()
+
+# sky_plot(interactive=False)

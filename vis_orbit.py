@@ -8,6 +8,7 @@ import pandas as pd
 from star_props import stellar_properties
 from astropy.io import ascii
 import re
+from astropy.time import Time
 
 def companion_position(file_name):
     with open(f"{file_name}") as f:
@@ -213,23 +214,42 @@ def vis_orbit_plotter(P, T0, a, i, Omega, omega, star_name, star_pos):
     Y_nodes = [-node_length * np.sin(Omega), node_length * np.sin(Omega)]
 
     # Plot
+
+    jd_times = star_pos['col1'] + 2400000.0
+    t = Time(jd_times, format='jd')
+    decimal_years = t.decimalyear
+
     plt.rcParams['font.family'] = 'Geneva'
     fig, ax = plt.subplots(figsize=(12,10))
     ax.plot(X, Y, 'k--')
-    ax.scatter(0, 0, color="red", marker="*", s=300, linewidth=3, zorder=10, label="Primary")
+    ax.scatter(0, 0, color="red", marker="*", s=400, linewidth=1, zorder=10, label="Primary", ec='k')
     # ax.scatter(comp_ra, comp_dec, c="k", marker="x", s=250, linewidth=3, zorder=10, label="Companion")
-    sc = ax.scatter(comp_ra, comp_dec, c=star_pos['col1'], marker="x", s=250, linewidth=3, zorder=10, cmap=cm.berlin, label="Companion")
+    sc = ax.scatter(comp_ra, comp_dec, c=t.decimalyear, marker="x", s=250, linewidth=3, zorder=10, cmap=cm.managua, label="Companion")
     # ax.errorbar(dat[0], dat[2], color=colors[i], xerr=dat[1], yerr=dat[3], marker="x")
     cbar = fig.colorbar(sc, orientation='vertical', pad=0.12)
-    cbar.set_label('Observation Epoch [HJD]', fontsize=18)
+    cbar.set_label('Observation Epoch [Decimal Year]', fontsize=18)
     cbar.ax.tick_params(labelsize=16)
-    ax.scatter(X_nodes[0], Y_nodes[0], color='xkcd:goldenrod', marker="+", s=300, label='T0', zorder=10, linewidth=3)
+    ax.scatter(X_nodes[0], Y_nodes[0], color='k', marker="+", s=300, label='T0', zorder=10, linewidth=3)
     ax.scatter([Xp], [Yp], color='xkcd:kelly green', marker='+', s=300, label="Periastron", linewidth=3, zorder=10)
     ax.plot(X_nodes, Y_nodes, 'k-')
     ax.xaxis.set_inverted(True)
     ax.set_xlabel("ΔRA (arcsec)", fontsize=22)
     ax.set_ylabel("ΔDec (arcsec)", fontsize=22)
-    ax.legend(fontsize=18)
+    ax.legend(loc="upper left", fontsize=18)
+    ax.text(
+        0.8, 0.02,  # (x, y) in axes coordinates (1.0 is right/top)
+        f"{star_name}",  # Text string
+        ha='left', va='bottom',  # Horizontal and vertical alignment
+        transform=ax.transAxes,  # Use axes coordinates
+        fontsize=16,
+        fontweight='bold',
+        bbox=dict(
+            facecolor='white',  # Box background color
+            edgecolor='black',  # Box border color
+            boxstyle='square,pad=0.3',  # Rounded box with padding
+            alpha=0.9  # Slight transparency
+        )
+    )
     # ax.set_title("Binary Orbit Projection", fontsize=24)
     ax.tick_params(axis='both', which='major', length=10, width=1, labelsize=18)
     secax_x = ax.secondary_xaxis("top", functions=(ra_mas_to_au, ra_au_to_mas))
@@ -268,14 +288,14 @@ if __name__ == '__main__':
     # #
     # vis_orbit_1(companion_data, "HD191610")
 
-    dat = ascii.read("HD041335_CHARA.txt")
-    print(dat)
+    dat = ascii.read("CHARA/HD191610.txt")
+    # print(dat)
 
-    P = 80.8733  # period (years)
-    T0 = 59541.3  # epoch of periastron
-    a = 1.914  # semi-major axis (arcsec)
-    i = np.radians(77.7)  # inclination
-    Omega = np.radians(60)  # longitude of ascending node
-    omega = np.radians(90.0)  # argument of periastron (fixed)
-    vis_orbit_plotter(P, T0, a, i, Omega, omega, 'HD041335', dat)
+    P = 359.260 # period (years)
+    T0 = 59524.8   # epoch of periastron
+    a = 7.426  # semi-major axis (arcsec)
+    i = np.radians(118.7)  # inclination
+    Omega = np.radians(125)  # longitude of ascending node
+    omega = np.radians(90)  # argument of periastron (fixed)
+    vis_orbit_plotter(P, T0, a, i, Omega, omega, 'HD191610', dat)
     # vis_orbit_1('CHARA/HD191610.txt', 'HD191610')

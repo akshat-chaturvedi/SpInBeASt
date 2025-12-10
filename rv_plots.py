@@ -4,9 +4,11 @@ import numpy as np
 from thejoker.plot import plot_rv_curves
 import pandas as pd
 import astropy.units as u
+from astropy.time import Time
 import pickle
 import os
 import corner
+from binarystarsolve.binarystarsolve import StarSolve
 from SpectrumAnalyzer import spin_beast
 
 RED = '\033[91m'
@@ -16,7 +18,7 @@ BLUE = '\033[94m'
 RESET = '\033[0m'
 
 
-def rv_plot(star_name, show_raw_plot=False, params=None):
+def rv_plot(star_name, show_raw_plot=False, params=None, t_0=None):
     spec_type = input(f"Are the observations {RED}optical [O]{RESET} or {BLUE}UV [U]{RESET}?: ")
     if spec_type in ["o", "O"]:
         spec_flag = "Optical"
@@ -151,7 +153,10 @@ def rv_plot(star_name, show_raw_plot=False, params=None):
 
     # Create phase-folded RV plot
     P = orbit.P
-    t0 = samples.median_period().get_t0()
+    if not t_0:
+        t0 = samples.median_period().get_t0()
+    else:
+        t0 = Time(t_0, format="mjd", scale='tcb')
     unit_phase_grid = np.linspace(0, 1, 1000)
     phase_grid = unit_phase_grid
 
@@ -160,6 +165,8 @@ def rv_plot(star_name, show_raw_plot=False, params=None):
 
     # jds = Time(t, format='mjd', scale='tcb')
     resids = data.rv - orbit.radial_velocity(data.t)  # Calculate residuals
+
+    print(samples.median_period().tbl["P", "e", "K"])
 
     # Plot phase-folded RV curve
     fig, ax = plt.subplots(2,1, sharex=True, figsize=(20, 10), gridspec_kw={'height_ratios': [4, 1]})
@@ -176,8 +183,9 @@ def rv_plot(star_name, show_raw_plot=False, params=None):
     ax[0].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
                    width=1)
     ax[0].text(
-        0.85, 0.7,  # (x, y) in axes coordinates (1.0 is right/top)
-        f"P={orbit_dict['P']:.2f}\nM={orbit_dict['M0']:.2f}\nomega={orbit_dict['omega']:.2f}\ne={orbit_dict['e']:.2f}\nK={orbit_dict['K']:.2f}"
+        0.85, 0.68,  # (x, y) in axes coordinates (1.0 is right/top)
+        f"P={orbit_dict['P']:.2f}\nT0={t0.value:.2f}\nM={orbit_dict['M0']:.2f}\nomega={orbit_dict['omega']:.2f}\n"
+        f"e={orbit_dict['e']:.2f}\nK={orbit_dict['K']:.2f}"
         f"\nv0={orbit_dict['v0']:.2f}",  # Text string
         ha='left', va='bottom',  # Horizontal and vertical alignment
         transform=ax[0].transAxes,  # Use axes coordinates
@@ -213,15 +221,15 @@ def rv_plot(star_name, show_raw_plot=False, params=None):
 
 if __name__ == '__main__':
     print(spin_beast)
-    dat = pd.read_csv("RV_Data/HD 152478_RV.txt", header=None)
-    rv_plot("HD152478_Arc_Mine", show_raw_plot=True)
+    dat = pd.read_csv("RV_Data/QY Car_RV.txt", header=None)
+    rv_plot("HD 88661", show_raw_plot=True)
 
-    # opt_dat = pd.read_csv("RV_Plots/Optical/HD113120/HD113120_phase_folded.txt")
-    # opt_model = pd.read_csv("RV_Plots/Optical/HD113120/HD113120_phase_folded_model.txt")
+    # opt_dat = pd.read_csv("RV_Plots/Optical/HD 35165_BeSS/HD 35165_BeSS_phase_folded.txt")
+    # opt_model = pd.read_csv("RV_Plots/Optical/HD 35165_BeSS/HD 35165_BeSS_phase_folded_model.txt")
     #
-    # uv_dat = pd.read_csv("RV_Plots/UV/HD113120/HD113120_phase_folded.txt")
-    # uv_model = pd.read_csv("RV_Plots/UV/HD113120/HD113120_phase_folded_model.txt")
-
+    # uv_dat = pd.read_csv("RV_Plots/Optical/HD 35165_He_BeSS/HD 35165_He_BeSS_phase_folded.txt")
+    # uv_model = pd.read_csv("RV_Plots/Optical/HD 35165_He_BeSS/HD 35165_He_BeSS_phase_folded_model.txt")
+    #
     # fig, ax = plt.subplots(2,1, sharex=True, figsize=(20, 10), gridspec_kw={'height_ratios': [4, 1]})
     # plt.subplots_adjust(hspace=0)
     # fig.supxlabel("Phase", fontsize=24)
@@ -234,14 +242,14 @@ if __name__ == '__main__':
     # ax[0].set_ylabel("Radial Velocity [km s$^{-1}$]", fontsize=22)
     # ax[0].legend(fontsize=22)
     # ax[0].set_xlim(0, 1)
-    # ax[0].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
+    # ax[0].tick_params(axis='both', which='both', diorection='in', labelsize=22, top=True, right=True, length=10,
     #                   width=1)
     # ax[1].scatter(opt_dat['Phase'], opt_dat['Residuals'], c="red", s=100, zorder=15, edgecolor='k', linewidth=2)
     # ax[1].scatter(uv_dat['Phase'], uv_dat['Residuals'], c="dodgerblue", s=100, zorder=15, edgecolor='k', linewidth=2, marker='s')
-    # ax[1].set_ylabel("O-C", fontsize=24)
+    # ax[1].set_ylabel("O$-$C", fontsize=24)
     # ax[1].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
     #                   width=1)
     # ax[1].yaxis.get_offset_text().set_size(22)
     # ax[1].hlines(0, 0, 1, color="k", linestyle="--", zorder=0)
-    # fig.savefig(f"RV_Plots/HD113120_phase_folded_both_1.pdf", bbox_inches="tight", dpi=300)
+    # fig.savefig(f"RV_Plots/HD035165_phase_folded_both_BeSS.pdf", bbox_inches="tight", dpi=300)
     # plt.close()

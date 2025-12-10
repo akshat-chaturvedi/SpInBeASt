@@ -12,6 +12,7 @@ import time
 import os
 import scipy.signal as sig
 import itertools
+import re
 
 from astropy.visualization import quantity_support
 quantity_support()
@@ -296,7 +297,7 @@ def be_model_generator(model_spec: str, model_cont: str, star_name: str):
 
 def ccf_be_sdo(be_model_file, sdo_model_file):
     """
-    Computes the cross-correlation function (CCF) of an observed HST/STIS spectrum with a provided model spectrum
+    Computes the cross-correlation function (CCF) of a model B star spectrum with a model hot subdwarf spectrum
 
     :param be_model_file: Filename of the Be star model. Should be a fits file of the format 'TLUSTY15000_rec.fits'
     where the number represents the model temperature
@@ -314,17 +315,25 @@ def ccf_be_sdo(be_model_file, sdo_model_file):
         sdo_model_spec = np.array(hdul[0].data, dtype=float)
     sdo_model_temp = sdo_model_file.split("/")[-1].split('_')[0].split('TLUSTY')[-1]
 
+    be_model_spec = (be_model_spec - np.mean(be_model_spec)) / np.std(be_model_spec)
+    sdo_model_spec = (sdo_model_spec - np.mean(sdo_model_spec)) / np.std(sdo_model_spec)
+
     ccf = sig.correlate(be_model_spec, sdo_model_spec)
     lag_pixel = np.arange(len(ccf))-(len(ccf)-1)/2
     lag_loglam = 2.5e-5 * lag_pixel
 
-    ind = np.where((-15 < lag_pixel) & (lag_pixel < 15))[0]
+    ind = np.where((-150 < lag_pixel) & (lag_pixel < 150))[0]
     x = np.linspace(lag_loglam[ind][0],lag_loglam[ind][-1], 10_000)
     cs = CubicSpline(lag_loglam, ccf)
 
     temp_combination = f"Be={int(be_model_temp)/1000} kK, sdO={int(sdo_model_temp)/1000} kK"
 
-    return x, cs(x), temp_combination
+    hdu = fits.PrimaryHDU(data=np.array([x, cs(x) - min(cs(x))]))
+    hdul = fits.HDUList([hdu])
+
+    hdul.writeto(f"../HST_Spectra/Models/{stars_name}_Models_Be/Be_sdO_CCF_{int(sdo_model_temp)}.fits", overwrite=True)
+
+    return x, cs(x), temp_combination, be_model_temp, sdo_model_temp
 
 
 if __name__ == '__main__':
@@ -355,16 +364,17 @@ if __name__ == '__main__':
     # model_spect = 'BGuvspec/BG22000g325v2.uv.7'
     # model_contt = 'BGuvspec/BG22000g325v2.uv.17'
 
+    # Model generation stars here!
     list_of_model_specs = sorted(glob.glob("BGuvspec/*g425*.uv.7"))
     list_of_model_conts = sorted(glob.glob("BGuvspec/*g425*.uv.17"))
 
-    stars_name = 'HD157042'
+    stars_name = 'HD191610'
 
     models = []
     models_broadened = []
     for i in range(len(list_of_model_specs)):
         models_broadened.append(be_model_generator_broadened(list_of_model_specs[i], list_of_model_conts[i],
-                                                             220, limb_dark_coefficient( 4.2,25860),
+                                                             300, limb_dark_coefficient(3.7,20470),
                                                              stars_name))
         models.append(be_model_generator(list_of_model_specs[i], list_of_model_conts[i], stars_name))
 
@@ -404,22 +414,51 @@ if __name__ == '__main__':
                 dpi=300)
     plt.close()
 
-    be_temp = 26000
-    sdo_temp = 33800
+    # stars_name = "HD055606"
+    be_temp = 15000
+    # sdo_temp = 45000
     be_model = f"../HST_Spectra/Models/{stars_name}_Models_Be/TLUSTY{be_temp}_rec_broadened.fits"
-    sdo_model = f"../HST_Spectra/Models/{stars_name}_Models/TLUSTY{sdo_temp}_rec.fits"
-    x_val, cs_val, temp = ccf_be_sdo(be_model, sdo_model)
+    sdo_models = glob.glob(f"../HST_Spectra/Models/{stars_name}_Models/TLUSTY*_rec.fits")
 
-    hdu = fits.PrimaryHDU(data=np.array([x_val, cs_val - min(cs_val)]))
-    hdul = fits.HDUList([hdu])
+    valid_models = [
+        path for path in sdo_models
+        if re.match(r'^TLUSTY\d+', os.path.basename(path))
+    ]
 
-    hdul.writeto(f"../HST_Spectra/Models/{stars_name}_Models_Be/Be_sdO_CCF.fits", overwrite=True)
+    x_vals = []
+    cs_vals = []
+    temps = []
+    be_model_temps = []
+    sdo_model_temps = []
+    for model in valid_models:
+        x_val, cs_val, temp, be_mod_temp, sdo_mod_temp = ccf_be_sdo(be_model, model)
+        x_vals.append(x_val)
+        cs_vals.append(cs_val)
+        temps.append(temp)
+        be_model_temps.append(be_mod_temp)
+        sdo_model_temps.append(sdo_mod_temp)
+
+    paired = [
+        (int(t), wl, fl) for t, wl, fl in zip(sdo_model_temps, x_vals, cs_vals) if t.isdigit()
+    ]
+
+    paired.sort(key=lambda x: x[0])
+
+    sorted_temps = [t for t, _, _ in paired]
+    sorted_x = [wl for _, wl, _ in paired]
+    sorted_cs = [fl for _, _, fl in paired]
+
+    # breakpoint()
+    cmap = cm.managua  # or cm.roma, cm.lajolla, etc.
+    N = len(temps)  # Number of colors (e.g., for 10 lines)
+    colors = [cmap(i / N) for i in range(N)]
 
     plt.rcParams['font.family'] = 'Geneva'
     fig, ax = plt.subplots(figsize=(15, 10))
     # ax.plot(lag_loglam[ind], ccf[ind]-min(ccf[ind]), linewidth=3, c="k")
-    ax.plot(x_val * 3e5, cs_val - min(cs_val), linewidth=3, label=f"{temp}",
-            c='k')
+    for i in range(len(temps)):
+        ax.plot(sorted_x[i] * 3e5, sorted_cs[i] - min(sorted_cs[i]), linewidth=3, label=f"{sorted_temps[i]/1000}",
+                c=colors[i])
     # ax.set_box_aspect(0.3)
     ax.tick_params(axis='x', labelsize=18)
     ax.tick_params(axis='y', labelsize=18)
@@ -427,8 +466,8 @@ if __name__ == '__main__':
                    width=1)
     ax.set_xlabel(r"Velocity", fontsize=20)
     ax.set_ylabel("Correlation Value", fontsize=20)
-    ax.set_title("Cross Correlation Function", fontsize=24)
-    ax.legend(title="Model Combination", title_fontsize=18, fontsize=16)
+    ax.set_title(fr"Be+sdO CCF for {stars_name} T$_{{\text{{eff}}}}$={be_temp}", fontsize=24)
+    ax.legend(title="sdO Temperature", title_fontsize=18, fontsize=16, ncols=2)
     fig.savefig(f"../HST_Spectra/Models/{stars_name}_Models_Be/CCF_Be_sdO_{stars_name}.pdf",
                 bbox_inches="tight", dpi=300)
     plt.close()

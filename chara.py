@@ -20,7 +20,7 @@ RESET = '\033[0m'
 
 plt.rcParams['font.family'] = 'Geneva'
 
-def binary_fit(filename, star_name, star_diam, band):
+def binary_fit(filename, star_name, star_diam, band, comp_flux=0.01):
     logging.basicConfig(
         filename='BinaryFit.log',
         encoding='utf-8',
@@ -44,14 +44,13 @@ def binary_fit(filename, star_name, star_diam, band):
 
     # -- smallest lambda/B in mas (first data set)
     step = 180 * 3600 * 1000e-6 / np.pi / max([np.max(oi.data[0]['OI_VIS2'][k]['B/wl']) for k in oi.data[0]['OI_VIS2']])
-
     # -- spectral resolution (first data set)
     R = np.mean(oi.data[0]['WL'] / oi.data[0]['dWL'])
 
     print('step: %.1fmas, range: +- %.1fmas' % (step, R / 2 * step))
 
     # -- initial model dict: 'c,x' and 'c,y' do not matter, as they will be explored in the fit
-    param = {'*,ud': star_diam, '*,f': 1, 'c,f': 0.01, 'c,x': 0, 'c,y': 0, 'c,ud': 0.0}
+    param = {'*,ud': star_diam, '*,f': 1, 'c,f': comp_flux, 'c,x': 0, 'c,y': 0, 'c,ud': 0.0}
 
     # -- define the exploration pattern
     expl = {'grid': {'c,x': (-R / 2 * step, R / 2 * step, step), 'c,y': (-R / 2 * step, R / 2 * step, step)}}
@@ -87,7 +86,7 @@ def binary_fit(filename, star_name, star_diam, band):
     plt.savefig(f"CHARA/Figures/Fit_Figures/{star_name}/{obs_date}_{star_name}_{band}_figure_3.pdf", dpi=300, bbox_inches='tight')
     plt.close()
 
-    oi.bootstrapFit(300)
+    oi.bootstrapFit(500)
     oi.showBootstrap()
     plt.savefig(f"CHARA/Figures/Fit_Figures/{star_name}/{obs_date}_{star_name}_{band}_figure_4.pdf", dpi=300, bbox_inches='tight')
     plt.close()
@@ -177,7 +176,7 @@ def orbit_plotter(comp_data, star_name):
 
         print(" "*18 + f"{dat[5]}\t" + f"{dat[6]:.4f}\t" +f"PA = {pos_angles[0]:.3f} ± {pos_angles[1]:.3e}\t" +
               f"\tSep = {seps[0]:.3f} ± {seps[1]:.3e}")
-        confidence_ellipse(np.array([dat[0]]), np.array([dat[2]]), ax, n_std=3, cov=dat[4], edgecolor='k', zorder=0)
+        confidence_ellipse(np.array([dat[0]]), np.array([dat[2]]), ax, n_std=5, cov=dat[4], edgecolor='k', zorder=0)
         ax.scatter(dat[0], dat[2], color=colors[i], marker="x", s=100, label=f"{dat[7]} {dat[5]}")
         # ax.errorbar(dat[0], dat[2], color=colors[i], xerr=dat[1], yerr=dat[3], marker="x")
 
@@ -217,7 +216,7 @@ def orbit_plotter(comp_data, star_name):
     ax.tick_params(axis='x', which='major', labelsize=16)
     ax.tick_params(axis='both', which='major', length=8, width=1)
     ax.yaxis.get_offset_text().set_size(20)
-    ax.legend(fontsize=10, ncol=2, loc="upper center")
+    ax.legend(fontsize=10, loc="center left", bbox_to_anchor=(1.15, 0.5))
     fig.savefig(f"CHARA/Figures/Visual_Orbits/Visual_Orbit_{star_name}.pdf", bbox_inches="tight", dpi=300)
     plt.close()
 

@@ -1,6 +1,13 @@
-from SpectrumAnalyzer import spin_beast
+# from SpectrumAnalyzer import spin_beast
 
-def coord_transfer(ra, dec):
+def coord_transfer(ra: str, dec: str):
+    """
+    Converts the RA and Declination of an astronomical source from sexagesimal strings to decimal degrees
+
+    :param ra: (str) Right Ascension (in sexagesimal) of object
+
+    :param dec: (str) Declination (in sexagesimal) of object
+    """
     ra_string = ra.split(" ")
     ra_hh = int(ra_string[0])
     ra_mm = int(ra_string[1])
