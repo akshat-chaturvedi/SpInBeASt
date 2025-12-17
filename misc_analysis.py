@@ -92,7 +92,7 @@ def sky_plot(interactive=False):
 
     eq_ra, eq_dec = -eq.ra.wrap_at('180d').radian, eq.dec.radian
 
-    plt.rcParams['font.family'] = 'Geneva'
+    
     fig, ax = plt.subplots(figsize=(20, 10), subplot_kw={"projection": "aitoff"})
     ax.set_xticks(ticks=np.radians([-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150]),
                labels=['150°', '120°', '90°', '60°', '30°', '0°', '330°', '300°', '270°', '240°', '210°'])

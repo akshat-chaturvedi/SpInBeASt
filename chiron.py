@@ -23,6 +23,8 @@ from cmcrameri import cm
 from chironHelperFunctions import *
 import logging
 
+plt.rcParams['font.family'] = 'Trebuchet MS'
+
 class CHIRONSpectrum:
     """
     A class that represents a pipeline for analyzing CTIO/CHIRON slicer mode spectra to obtain radial velocities. It
@@ -117,7 +119,7 @@ class CHIRONSpectrum:
             fluxes = np.array(fluxes)
 
             # Plotting H Alpha order
-            plt.rcParams['font.family'] = 'Geneva'
+            
             fig, ax = plt.subplots(figsize=(20, 10))
             ax.plot(wavs, fluxes / continuum_fit, c='k')
             # ax.spines['bottom'].set_color('white')
@@ -168,7 +170,7 @@ class CHIRONSpectrum:
             fluxes = np.array(fluxes)
 
             # Plotting H Beta order
-            plt.rcParams['font.family'] = 'Geneva'
+            
             fig, ax = plt.subplots(figsize=(20, 10))
             ax.plot(wavs, fluxes / continuum_fit, c='k')
             ax.set_title(f'{self.star_name}' + fr' {self.obs_date} H$\beta$', fontsize=24)
@@ -199,8 +201,8 @@ class CHIRONSpectrum:
             wavs = []
             fluxes = []
             for j in range(3200):
-                wavs.append(self.dat[10][j][0])
-                fluxes.append(self.dat[10][j][1])
+                wavs.append(self.dat[3][j][0])
+                fluxes.append(self.dat[3][j][1])
 
             if self.star_name == 'HR 2142' and self.obs_date == '2024-12-13':
                 continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, self.obs_date, order=39,
@@ -212,7 +214,7 @@ class CHIRONSpectrum:
             fluxes = np.array(fluxes)
 
             # Plotting H Alpha order
-            plt.rcParams['font.family'] = 'Geneva'
+            
             fig, ax = plt.subplots(figsize=(20, 10))
             ax.plot(wavs, fluxes / continuum_fit, c='k')
             ax.set_title(f'{clean_star_name3(self.star_name)}' + fr' {self.obs_date} He I $\lambda$5016', fontsize=24)
@@ -222,7 +224,7 @@ class CHIRONSpectrum:
             ax.tick_params(axis='y', which='major', labelsize=20)
             ax.tick_params(axis='x', which='major', labelsize=20)
             ax.tick_params(axis='both', which='major', length=10, width=1)
-            ax.set_xlim(5000, 5030)
+            ax.set_xlim(4700, 4730)
             ax.yaxis.get_offset_text().set_size(20)
             fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/He_I_6678/He_I_6678_{self.star_name}_{self.obs_date}.pdf",
                         bbox_inches="tight", dpi=300)
@@ -256,7 +258,7 @@ class CHIRONSpectrum:
             wavs = np.array(wavs)
             fluxes = np.array(fluxes)
 
-            plt.rcParams['font.family'] = 'Geneva'
+            
             fig, ax = plt.subplots(figsize=(20, 10))
             ax.plot(wavs, fluxes / continuum_fit, c='k')
             ax.set_title(f'{self.star_name}' + fr' {self.obs_date} Na I Doublet', fontsize=24)
@@ -319,7 +321,7 @@ class CHIRONSpectrum:
             blaze_flux = np.array(blaze_fluxes).flatten()
 
             # Plotting full flattened & normalized spectrum
-            plt.rcParams['font.family'] = 'Geneva'
+            
             fig, ax = plt.subplots(figsize=(20, 10))
             ax.plot(total_wavelengths, blaze_flux, c='k')
             ax.set_title(f'{self.star_name}' + f' {self.obs_date}', fontsize=24)
@@ -381,7 +383,7 @@ class CHIRONSpectrum:
                 wavs = np.array(wavs)[sorted_inds]
                 fluxes = np.array(fluxes)[sorted_inds]
 
-                plt.rcParams['font.family'] = 'Geneva'
+                
                 fig, ax = plt.subplots(figsize=(20, 10))
                 # colors = ["k", "r"]
                 # Colormap
@@ -390,7 +392,7 @@ class CHIRONSpectrum:
                 sm = mpcm.ScalarMappable(norm=norm, cmap=cmap)
 
                 # Plot stacked spectra
-                offset_step = 0.1
+                offset_step = 0.05
                 offset = 0
 
                 for i in range(len(wavs)):
@@ -399,9 +401,19 @@ class CHIRONSpectrum:
                     offset += offset_step
 
                 # Labels / axis
-                ax.set_title(fr'Multi-epoch {clean_star_name3(self.star_name)} H$\alpha$', fontsize=24)
+                # ax.set_title(fr'Multi-epoch {clean_star_name3(self.star_name)} H$\alpha$', fontsize=24)
                 ax.set_xlabel("Wavelength [Å]", fontsize=22)
                 ax.set_ylabel("Normalized Flux + offset", fontsize=22)
+
+                ax.text(0.05, 0.92, fr"{clean_star_name3(self.star_name)} H$\alpha$",
+                           color="k", fontsize=18, transform=ax.transAxes,
+                           bbox=dict(
+                               facecolor='white',  # Box background color
+                               edgecolor='black',  # Box border color
+                               boxstyle='square,pad=0.3',  # Rounded box with padding
+                               alpha=0.9  # Slight transparency
+                           )
+                           )
 
                 ax.tick_params(axis='both', which='both', direction='in', top=True, right=True)
                 ax.tick_params(axis='y', which='major', labelsize=20)
@@ -409,11 +421,11 @@ class CHIRONSpectrum:
                 ax.tick_params(axis='both', which='major', length=10, width=1)
                 ax.yaxis.get_offset_text().set_size(20)
 
-                ax.set_xlim(6550, 6590)
+                ax.set_xlim(6562.8-6562.8*500/3e5, 6562.8+6562.8*500/3e5)
 
                 # Add colorbar
                 cbar = fig.colorbar(sm, ax=ax, pad=0.02)
-                cbar.set_label("HJD-2400000", fontsize=20)
+                cbar.set_label("BJD-2400000", fontsize=20)
                 cbar.ax.tick_params(labelsize=18)
 
                 # Save
@@ -424,17 +436,27 @@ class CHIRONSpectrum:
                 plt.close()
 
                 if avg_h_alpha:
-                    plt.rcParams['font.family'] = 'Geneva'
+                    
                     fig, ax = plt.subplots(figsize=(20, 10))
 
-                    ax.plot(wavs[0],np.mean(np.stack(fluxes), axis=0), c="k", linewidth=3, zorder=10, label="Average Spectrum")
+                    ax.plot(wavs[0],np.mean(np.stack(fluxes), axis=0), c="k", linewidth=3, zorder=10, label="Mean Spectrum")
                     for i in range(len(wavs)):
                         ax.plot(wavs[i], fluxes[i], color="lightgray", linewidth=1)
 
                     # Labels / axis
-                    ax.set_title(fr'Multi-epoch {clean_star_name3(self.star_name)} H$\alpha$', fontsize=24)
+                    # ax.set_title(fr'Multi-epoch {clean_star_name3(self.star_name)} H$\alpha$', fontsize=24)
                     ax.set_xlabel("Wavelength [Å]", fontsize=22)
                     ax.set_ylabel("Normalized Flux + offset", fontsize=22)
+
+                    ax.text(0.05, 0.92, fr"{clean_star_name3(self.star_name)} Mean H$\alpha$",
+                            color="k", fontsize=18, transform=ax.transAxes,
+                            bbox=dict(
+                                facecolor='white',  # Box background color
+                                edgecolor='black',  # Box border color
+                                boxstyle='square,pad=0.3',  # Rounded box with padding
+                                alpha=0.9  # Slight transparency
+                            )
+                            )
 
                     ax.tick_params(axis='both', which='both', direction='in', top=True, right=True)
                     ax.tick_params(axis='y', which='major', labelsize=20)
@@ -442,7 +464,7 @@ class CHIRONSpectrum:
                     ax.tick_params(axis='both', which='major', length=10, width=1)
                     ax.yaxis.get_offset_text().set_size(20)
 
-                    ax.set_xlim(6550, 6590)
+                    ax.set_xlim(6562.8-6562.8*500/3e5, 6562.8+6562.8*500/3e5)
 
                     fig.savefig(
                         f"CHIRON_Spectra/StarSpectra/Plots/Multi_Epoch/HAlpha/ME_HAlpha_{self.star_name}_avg.pdf",
@@ -457,7 +479,7 @@ class CHIRONSpectrum:
                     sorted_fluxes = fluxes[sort_idx]
                     sorted_phases = phases[sort_idx]
 
-                    plt.rcParams['font.family'] = 'Geneva'
+                    
                     fig, ax = plt.subplots(figsize=(20, 10))
                     img = ax.imshow(
                         sorted_fluxes,
@@ -510,7 +532,7 @@ class CHIRONSpectrum:
                 wavs = np.array(wavs)[sorted_inds]
                 fluxes = np.array(fluxes)[sorted_inds]
 
-                plt.rcParams['font.family'] = 'Geneva'
+                
                 fig, ax = plt.subplots(figsize=(20, 10))
                 # colors = ["k", "r"]
                 # Colormap
@@ -553,7 +575,7 @@ class CHIRONSpectrum:
                 plt.close()
 
                 if avg_h_beta:
-                    plt.rcParams['font.family'] = 'Geneva'
+                    
                     fig, ax = plt.subplots(figsize=(20, 10))
 
                     ax.plot(wavs[0], np.mean(np.stack(fluxes), axis=0), c="k", linewidth=3, zorder=10,
@@ -601,7 +623,7 @@ class CHIRONSpectrum:
                 wavs = np.array(wavs)[sorted_inds]
                 fluxes = np.array(fluxes)[sorted_inds]
 
-                plt.rcParams['font.family'] = 'Geneva'
+                
                 fig, ax = plt.subplots(figsize=(20, 10))
                 # colors = ["k", "r"]
                 cmap = cm.roma  # or cm.roma, cm.lajolla, etc.
@@ -623,7 +645,7 @@ class CHIRONSpectrum:
                 plt.close()
 
                 if avg_he_I_6678:
-                    plt.rcParams['font.family'] = 'Geneva'
+                    
                     fig, ax = plt.subplots(figsize=(20, 10))
 
                     ax.plot(wavs[0],np.mean(np.stack(fluxes), axis=0), c="k", linewidth=3, zorder=10, label="Average Spectrum")
@@ -671,7 +693,7 @@ class CHIRONSpectrum:
                 wavs = np.array(wavs)[sorted_inds]
                 fluxes = np.array(fluxes)[sorted_inds]
 
-                plt.rcParams['font.family'] = 'Geneva'
+                
                 fig, ax = plt.subplots(figsize=(20, 10))
                 # colors = ["k", "r"]
                 # Colormap
@@ -714,7 +736,7 @@ class CHIRONSpectrum:
                 plt.close()
 
                 if avg_na_1_doublet:
-                    plt.rcParams['font.family'] = 'Geneva'
+                    
                     fig, ax = plt.subplots(figsize=(20, 10))
 
                     ax.plot(wavs[0],np.mean(np.stack(fluxes), axis=0), c="k", linewidth=3, zorder=10, label="Average Spectrum")
@@ -747,7 +769,7 @@ class CHIRONSpectrum:
                     sorted_fluxes = fluxes[sort_idx]
                     sorted_phases = phases[sort_idx]
 
-                    plt.rcParams['font.family'] = 'Geneva'
+                    
                     fig, ax = plt.subplots(figsize=(20, 10))
                     img = ax.imshow(
                         sorted_fluxes,
@@ -843,7 +865,7 @@ class CHIRONSpectrum:
         if print_rad_vel:
             print(f"RV = \033[92m{rad_vel:.3f} km/s\033[0m")
 
-        plt.rcParams['font.family'] = 'Geneva'
+        
         fig, ax = plt.subplots(figsize=(20, 10))
         ax.plot(((obs_spec_resampled.spectral_axis.value - 6562.8) / 6562.8) * 3e5, obs_spec_resampled.flux.value,
                 c="k")
@@ -968,7 +990,7 @@ class CHIRONSpectrum:
 
         ax[1].plot((6562.8+6562.8*(v_grid+self.bc_corr/1000)/3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=3)
         ax[1].set_ylabel("CCF", fontsize=22)
-        ax[1].hlines(0, min((6562.8+6562.8*(v_grid+self.bc_corr/1000)/3e5)[ccf_ind]), max((6562.8+6562.8*(v_grid+self.bc_corr/1000)/3e5)[ccf_ind]), color="k", linestyle="--", zorder=0)
+        ax[1].hlines(0, 6562.8-6562.8*500/3e5, 6562.8+6562.8*500/3e5, color="k", linestyle="--", zorder=0)
         ax[1].set_ylim(-1, 1)
         ax[1].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
                           width=1)
@@ -1071,7 +1093,7 @@ class CHIRONSpectrum:
 
             # print(f"Doublet Vel: {doublet_vel}")
 
-            err_v_doublet = 0.5  # Arbitratry error amount, need to check this
+            err_v_doublet = 0.5  # Arbitrary error amount, need to check this
             rad_vel_doublet_corrected = doublet_vel + (self.bc_corr / 1000)  # self.bc_corr has a sign, so need to add (otherwise might add when negative)
             # breakpoint()
             dlamb, coeff = wav_corr(np.array(wavs), self.bc_corr, doublet_vel)
@@ -1213,7 +1235,7 @@ class CHIRONSpectrum:
         for i in range(n_mag):
             ax.loglog(time, snr[:, i], label=f'{star_name_array[i]}', linestyle='-', color="k", linewidth=3)
 
-        plt.rcParams['font.family'] = 'Geneva'
+        
         ax.yaxis.get_offset_text().set_size(20)
         ax.hlines(130, min(time), max(time), color="xkcd:emerald", label="SNR=130", linewidth=3, alpha=0.8)
         ax.hlines(100, min(time), max(time), color="xkcd:goldenrod", label="SNR=100", linewidth=3, alpha=0.8)

@@ -18,7 +18,7 @@ YELLOW = '\033[93m'
 GREEN = '\033[92m'
 RESET = '\033[0m'
 
-plt.rcParams['font.family'] = 'Geneva'
+
 
 def binary_fit(filename, star_name, star_diam, band, comp_flux=0.01):
     logging.basicConfig(
@@ -147,7 +147,7 @@ def orbit_plotter(comp_data, star_name):
 
     def dec_au_to_mas(y): return y / mas_to_au
 
-    plt.rcParams['font.family'] = 'Geneva'
+    
     fig, ax = plt.subplots(figsize=(7, 7))
     ax.scatter(0, 0, color="k", marker="+", s=200)
 

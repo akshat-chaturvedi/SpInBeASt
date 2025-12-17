@@ -100,13 +100,20 @@ def recursive_sigma_clipping(wavelengths, fluxes, star_name, obs_date, order, de
             os.mkdir(f"CHIRON_Spectra/StarSpectra/Plots/Blaze_Function/{star_name}")
             print(f"-->CHIRON_Spectra/StarSpectra/Plots/Blaze_Function/{star_name} directory created, blaze function "
                   f"plots will be saved here!")
-
-        plt.rcParams['font.family'] = 'Geneva'
         fig, ax = plt.subplots(figsize=(20, 10))
         ax.plot(wavelengths, fluxes, c='k', label="Spectrum")
         ax.scatter(wavelengths[mask], fluxes[mask], c='xkcd:goldenrod', label="Points for Continuum Fit")
         ax.plot(wavelengths, continuum_fit, c="red", alpha=0.7, linewidth=5, label="Blaze Function Fit")
         ax.set_title(f'Blaze Function for {star_name} Order {order}', fontsize=24)
+        ax.text(0.15, 0.8, fr"{clean_star_name3(star_name)} H$\alpha$",
+                   color="k", fontsize=18, transform=ax.transAxes,
+                   bbox=dict(
+                       facecolor='white',  # Box background color
+                       edgecolor='black',  # Box border color
+                       boxstyle='square,pad=0.3',  # Rounded box with padding
+                       alpha=0.9  # Slight transparency
+                   )
+                   )
         ax.set_xlabel("Wavelength [Å]", fontsize=22)
         ax.set_ylabel("Un-Normalized Flux", fontsize=22)
         ax.tick_params(axis='both', which='both', direction='in', top=True, right=True)
@@ -647,7 +654,7 @@ if __name__ == '__main__':
     # totalWavelengths = np.array(totalWavelengths).flatten()
     # blazeFlux = np.array(blazeFlux).flatten()
     #
-    # plt.rcParams['font.family'] = 'Geneva'
+    # plt.rcParams['font.family'] = 'Trebuchet MS'
     # fig, ax = plt.subplots(figsize=(20,10))
     # # ax.plot(wavelengths, fluxes)
     # ax.plot(totalWavelengths, blazeFlux, 'k', label='Original Data')

@@ -71,7 +71,7 @@ class HSTSpectrum:
             os.mkdir("HST_Spectra/Plots")
             print("-->Plots directory created, plots will be saved here!")
 
-        plt.rcParams['font.family'] = 'Geneva'
+        
         fig, ax = plt.subplots(figsize=(20, 10))
         ax.plot(self.wavs[9], self.flux[9], color="k")
         ax.set_xlabel("Wavelength [Å]", fontsize=20)
@@ -92,7 +92,7 @@ class HSTSpectrum:
                 os.mkdir("HST_Spectra/Plots/FullSpec")
                 print("-->FullSpec directory created, plots will be saved here!")
 
-            plt.rcParams['font.family'] = 'Geneva'
+            
             fig, ax = plt.subplots(figsize=(20, 10))
             for i in range(len(self.wavs)):
                 ax.plot(self.wavs[i], self.flux[i], color="k")

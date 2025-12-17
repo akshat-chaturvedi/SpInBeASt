@@ -28,7 +28,7 @@ def companion_position(file_name):
     return ra, err_ra, dec, err_dec, cov_mat, obs_date, obs_time, combiner
 
 def orbit_plotter(comp_data, star_name):
-    plt.rcParams['font.family'] = 'Geneva'
+    
     fig, ax = plt.subplots(figsize=(7, 7))
     ax.scatter(0, 0, color="k", marker="+", s=200)
 
@@ -96,7 +96,7 @@ def vis_orbit_1(comp_data, star_name):
 
     def dec_au_to_mas(y): return y / mas_to_au
 
-    plt.rcParams['font.family'] = 'Geneva'
+    
     fig, ax = plt.subplots(figsize=(7, 7))
     ax.scatter(0, 0, color="k", marker="+", s=200)
 
@@ -219,7 +219,7 @@ def vis_orbit_plotter(P, T0, a, i, Omega, omega, star_name, star_pos):
     t = Time(jd_times, format='jd')
     decimal_years = t.decimalyear
 
-    plt.rcParams['font.family'] = 'Geneva'
+    
     fig, ax = plt.subplots(figsize=(12,10))
     ax.plot(X, Y, 'k--')
     ax.scatter(0, 0, color="red", marker="*", s=400, linewidth=1, zorder=10, label="Primary", ec='k')

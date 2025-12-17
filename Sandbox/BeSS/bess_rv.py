@@ -45,7 +45,7 @@ def bess_rv(star_name, file_name):
         err_v_bis = float(res["sigma_v_median"])
 
         if hdr['BSS_VHEL'] == 0:
-            rad_vel_bc_corrected = v_bis - hdr['BSS_RQVH']
+            rad_vel_bc_corrected = v_bis + hdr['BSS_RQVH']
         else:
             rad_vel_bc_corrected = v_bis
 

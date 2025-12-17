@@ -169,7 +169,7 @@ if __name__ == '__main__':
     my_pa = pa(x3, y3)
     print(my_pa)
 
-    plt.rcParams['font.family'] = 'Geneva'
+    # plt.rcParams['font.family'] = 'Geneva'
     fig, ax = plt.subplots(figsize=(7, 7))
     ax.scatter(0, 0, color="k", marker="+", s=200)
 

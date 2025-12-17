@@ -45,9 +45,10 @@ def apo_main(file_name: str):
         force=True  # IMPORTANT: Overwrites previous configs, needed in subprocesses
     )
     star = ARCESSpectrum(file_name)
-    star.spec_plot()
-    star.multi_epoch_spec()
+    star.spec_plot(full_spec=True, na_1_doublet=True)
+    # star.multi_epoch_spec()
     star.radial_velocity_bisector()
+    star.radial_velocity_doublet()
     logging.info(f'ARCES Spectrum Analyzed: {star.star_name}, Observation Date: {star.obs_date}')
     # print("\a")
 
@@ -77,12 +78,12 @@ def chiron_main(file_name: str):
     )
 
     star = CHIRONSpectrum(file_name)
-    star.blaze_corrected_plotter(he_1_6678=False)
-    # star.multi_epoch_spec(avg_h_alpha=True)
+    star.blaze_corrected_plotter(he_1_6678=True)
+    star.multi_epoch_spec(avg_h_alpha=True)
     # star.multi_epoch_spec(dynamic_h_alpha=True, p=236.50, t_0=2458672.10, na_1_doublet=False, avg_na_1_doublet=False,
     #                       dynamic_na_doublet=False)
     # star.radial_velocity()
-    # star.radial_velocity_bisector(print_crossings=False)
+    star.radial_velocity_bisector(print_crossings=False)
     star.radial_velocity_doublet()
     logging.info(f'CHIRON Spectrum Analyzed: {star.star_name}, Observation Date: {star.obs_date}')
 
@@ -100,8 +101,9 @@ if __name__ == '__main__':
     t1 = time.perf_counter()
     # chiron_fits_files = list_fits_files("CHIRON_Spectra/StarSpectra/")
     # chiron_fits_files += list_fits_files("CHIRON_Spectra/Archival/")
-    chiron_fits_files = glob.glob("CHIRON_Spectra/StarSpectra/RegulusB.fits")
-    # apo_fits_files = list_fits_files("APO_Spectra/FitsFiles/")
+    # chiron_fits_files = glob.glob("CHIRON_Spectra/StarSpectra/alfAra*.fits")
+    apo_fits_files = list_fits_files("APO_Spectra/FitsFiles/")
+    # apo_fits_files = glob.glob("APO_Spectra/Spec_Reductions/Final/UT251208/tellHD041335.0056.ex.ec.fits")
     # chiron_main("CHIRON_Spectra/StarSpectra/alfAra_First.fits")
     # apo_main()
     # hst_main()
@@ -110,21 +112,13 @@ if __name__ == '__main__':
     #     # Read the names
     #     star_names = sorted(f.read().splitlines())
     #
-    # # Modify the names based on the condition
-    # for name in star_names:
-    # #     # name = name.strip()  # Remove leading/trailing whitespaces
-    # #     creation_date = get_file_creation_date(name)
-    # #     if creation_date:
-    # #         name += f"-->DONE-{creation_date}"
-    #     modified_names.append(name)
-    #
     # Write back to the file
     # with open("CHIRON_Spectra/StarSpectra/CHIRONInventory.txt", "w") as file:
     #     file.write("\n".join(star_names))
 
     # sky_plot()
     with concurrent.futures.ProcessPoolExecutor() as executor:
-        futures = [executor.submit(chiron_main, f) for f in chiron_fits_files]
+        futures = [executor.submit(apo_main, f) for f in apo_fits_files]
 
         # iterate over futures as they complete
         for _ in tqdm(concurrent.futures.as_completed(futures), total=len(futures), colour='#8e82fe', file=sys.stdout):
@@ -137,6 +131,7 @@ if __name__ == '__main__':
     #     except:
     #         pass
     # for file in apo_fits_files:
+    #     print(file)
     #     apo_main(file)
 
     # files = glob.glob("CHARA/Prepped/HD183537/2025Oct31_HD183537_NFiles01_K_test1split5m_prepped.oifits")

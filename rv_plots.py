@@ -38,8 +38,8 @@ def rv_plot(star_name, show_raw_plot=False, params=None, t_0=None):
         print(f"{GREEN}-->RV_Plots/{spec_flag}/{star_name} directory created, plots will be saved here!{RESET}")
 
     # Read in data, and plot measured RVs if needed
-    plt.rcParams['font.family'] = 'Geneva'
-    t = list(dat[0])
+    
+    t = Time(list(dat[0]), format='jd', scale='tdb')
     rv = list(dat[1]) * u.km/u.s
     try:
         err = list(dat[2]) * u.km / u.s
@@ -155,16 +155,20 @@ def rv_plot(star_name, show_raw_plot=False, params=None, t_0=None):
     P = orbit.P
     if not t_0:
         t0 = samples.median_period().get_t0()
+        t0 = Time(t0, format='mjd', scale='tdb')
     else:
-        t0 = Time(t_0, format="mjd", scale='tcb')
+        t0 = Time(t_0, format="mjd", scale='tdb')
+
     unit_phase_grid = np.linspace(0, 1, 1000)
     phase_grid = unit_phase_grid
 
-    dt_jd = (data.t - t0).tcb.jd * u.day  # Get JD time relative to t0
+    dt_jd = (data.t - t0).jd * u.day  # Get JD time relative to t0
     phase = (dt_jd / P) % 1  # Get phase
 
     # jds = Time(t, format='mjd', scale='tcb')
     resids = data.rv - orbit.radial_velocity(data.t)  # Calculate residuals
+
+    # breakpoint()
 
     print(samples.median_period().tbl["P", "e", "K"])
 
@@ -221,8 +225,8 @@ def rv_plot(star_name, show_raw_plot=False, params=None, t_0=None):
 
 if __name__ == '__main__':
     print(spin_beast)
-    dat = pd.read_csv("RV_Data/QY Car_RV.txt", header=None)
-    rv_plot("HD 88661", show_raw_plot=True)
+    dat = pd.read_csv("~/Downloads/HR2142_archival_peters.txt", header=None)
+    rv_plot("HD 41335_peters", show_raw_plot=True)
 
     # opt_dat = pd.read_csv("RV_Plots/Optical/HD 35165_BeSS/HD 35165_BeSS_phase_folded.txt")
     # opt_model = pd.read_csv("RV_Plots/Optical/HD 35165_BeSS/HD 35165_BeSS_phase_folded_model.txt")
