@@ -1,8 +1,16 @@
+"""
+Utilities for handling APO/ARCES FITS files.
+
+Author: Akshat S. Chaturvedi
+Created: 2025-12-17
+"""
+
 from astropy.io import fits
 from astropy.time import Time
 import astropy.units as u
 from astropy.visualization import quantity_support
 quantity_support()
+
 
 RED = '\033[91m'
 GREEN = '\033[92m'
@@ -11,13 +19,6 @@ BLUE = '\033[94m'
 MAGENTA = '\033[95m'
 RESET = '\033[0m'
 
-"""
-Utilities for correcting APO/ARCES FITS header timestamps.
-
-Author: Akshat S. Chaturvedi
-Created: 2025-12-17
-"""
-
 
 def time_correcter(file_name):
     """
@@ -25,7 +26,7 @@ def time_correcter(file_name):
     the echelle timestamps were set LATER than they actually were. Also adds a history card to the header to reflect
     this change, along with a 'TIMECORR' flag which is set to TRUE if the time has been updated.
 
-    :param file_name:
+    :param file_name : The file name
 
     :return: None
     """
@@ -72,6 +73,24 @@ def time_correcter(file_name):
             print(f"{GREEN}DATE-OBS outside of erroneous time range, no change needed!{RESET}")
 
         hdul.flush()
+
+    return
+
+
+def file_renamer(file_name):
+    """
+    Function to update default reduction pipeline resultant file names (i.e. tell[star_name].[4-digit-number].ex.ec.fits)
+    to tell[star_name].[obs-date].ex.ec.fits to avoid duplicate file names. Reads in file header to obtain obs-date, and
+    creates a separate file with the new name.
+
+    :param file_name: The file name
+    :return: None
+    """
+    with fits.open(file_name) as hdul:
+        hdr = hdul[0].header
+        date_obs = hdr['DATE-OBS'].replace(':', '_').split('.')[0]
+        updated_file_name = file_name.replace(file_name.split(".ex.ec.fits")[0].split(".")[1], date_obs)
+        hdul.writeto(updated_file_name, overwrite=True)
 
     return
 

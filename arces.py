@@ -13,7 +13,9 @@ fluxcon = FluxConservingResampler()
 from barycorrpy import get_BC_vel, JDUTC_to_BJDTDB
 from cmcrameri import cm
 from chironHelperFunctions import *
-from arces_time_correcter import time_correcter
+from arces_fits_utilities import time_correcter
+from matplotlib.colors import Normalize
+from matplotlib import cm as mpcm
 
 class ARCESSpectrum:
     """
@@ -109,7 +111,7 @@ class ARCESSpectrum:
             ax.plot(w, self.dat, c="k")
             ax.set_title(fr"{self.star_name} {self.obs_date} H$\alpha$", fontsize=24)
             ax.set_xlabel("Wavelength [Å]", fontsize=22)
-            ax.set_ylabel("Normalized Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=22)
+            ax.set_ylabel("Normalized Flux", fontsize=22)
             plt.tick_params(axis='both', which='both', direction='in', top=True, right=True)
             plt.tick_params(axis='y', which='major', labelsize=20)
             plt.tick_params(axis='x', which='major', labelsize=20)
@@ -136,27 +138,26 @@ class ARCESSpectrum:
             ax.plot(w, self.dat, c="k")
             ax.set_title(fr"{self.star_name} {self.obs_date} H$\beta$", fontsize=24)
             ax.set_xlabel("Wavelength [Å]", fontsize=22)
-            ax.set_ylabel("Normalized Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=22)
+            ax.set_ylabel("Normalized Flux", fontsize=22)
             plt.tick_params(axis='both', which='both', direction='in', top=True, right=True)
             plt.tick_params(axis='y', which='major', labelsize=20)
             plt.tick_params(axis='x', which='major', labelsize=20)
             ax.tick_params(axis='both', which='major', length=10, width=1)
             ax.set_xlim(4800, 5000)
             mask = (w >= 4800) & (w <= 5000)
-            ax.set_ylim(0.5, np.max(self.dat[mask]) + 0.25)
+            ax.set_ylim(np.min(self.dat[mask]-0.25), np.max(self.dat[mask])+0.25)
             # ax.vlines(6562.8, -0.05, self.dat[np.argmin(abs(w - 6562.8))])
             ax.yaxis.get_offset_text().set_size(20)
             fig.savefig(f"APO_Spectra/SpectrumPlots/HBeta/{self.star_name}_{self.obs_date}.pdf",
                         bbox_inches="tight", dpi=300)
             plt.close()
 
-            if not h_alpha:
-                wavs = pd.Series(w)
-                fluxes = pd.Series(self.dat)
-                df = pd.concat([wavs, fluxes], axis="columns")
-                df.columns = ["Wavelength", "Flux"]
-                df.to_csv(f"APO_Spectra/SpectraData/{self.star_name}_{self.obs_date}.csv",
-                          index=False)
+            wavs = pd.Series(w[mask])
+            fluxes = pd.Series(self.dat[mask])
+            df = pd.concat([wavs, fluxes], axis="columns")
+            df.columns = ["Wavelength", "Flux"]
+            df.to_csv(f"APO_Spectra/SpectraData/HBeta/{self.star_name}_{self.obs_date}.csv",
+                      index=False)
 
         if na_1_doublet:
             # plt.rcParams['font.family'] = 'Trebuchet MS'
@@ -164,7 +165,7 @@ class ARCESSpectrum:
             ax.plot(w, self.dat, c="k")
             ax.set_title(fr"{self.star_name} {self.obs_date} Na I Doublet", fontsize=24)
             ax.set_xlabel("Wavelength [Å]", fontsize=22)
-            ax.set_ylabel("Normalized Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=22)
+            ax.set_ylabel("Normalized Flux", fontsize=22)
             plt.tick_params(axis='both', which='both', direction='in', top=True, right=True)
             plt.tick_params(axis='y', which='major', labelsize=20)
             plt.tick_params(axis='x', which='major', labelsize=20)
@@ -196,7 +197,7 @@ class ARCESSpectrum:
             ax.plot(w, self.dat, c="k")
             ax.set_title(fr"{self.star_name} {self.obs_date}", fontsize=24)
             ax.set_xlabel("Wavelength [Å]", fontsize=22)
-            ax.set_ylabel("Normalized Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=22)
+            ax.set_ylabel("Normalized Flux", fontsize=22)
             plt.tick_params(axis='both', which='both', direction='in', top=True, right=True)
             plt.tick_params(axis='y', which='major', labelsize=20)
             plt.tick_params(axis='x', which='major', labelsize=20)
@@ -238,25 +239,52 @@ class ARCESSpectrum:
                     wavs.append(np.array(dat["Wavelength"]))
                     fluxes.append(np.array(dat["Flux"]))
 
-                # plt.rcParams['font.family'] = 'Trebuchet MS'
+                sorted_inds = np.argsort(jds)
+                jds = np.array(jds)[sorted_inds]
+                wavs = np.array(wavs)[sorted_inds]
+                fluxes = np.array(fluxes)[sorted_inds]
+
                 fig, ax = plt.subplots(figsize=(20, 10))
-                cmap = cm.roma  # or cm.roma, cm.lajolla, etc.
-                N = len(wavs)  # Number of colors (e.g., for 10 lines)
-                colors = [cmap(i / N) for i in range(N)]
+
+                cmap = cm.berlin
+                norm = Normalize(vmin=(jds - 2400000).min(), vmax=(jds - 2400000).max())
+                sm = mpcm.ScalarMappable(norm=norm, cmap=cmap)
+
+                # Plot stacked spectra
+                offset_step = 0.05
+                offset = 0
+
                 for i in range(len(wavs)):
-                    ax.plot(wavs[i], fluxes[i], c=colors[i], label=f"HJD={jds[i]:.3f}")
+                    color = sm.to_rgba((jds-2400000)[i])
+                    ax.plot(wavs[i], fluxes[i] + offset, c=color)
+                    offset += offset_step
+
                 ax.set_title(fr'Multi-epoch {self.star_name} H$\alpha$', fontsize=24)
                 ax.set_xlabel("Wavelength [Å]", fontsize=22)
-                ax.set_ylabel("Normalized Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=22)
+                ax.set_ylabel("Normalized Flux + offset", fontsize=22)
                 ax.tick_params(axis='both', which='both', direction='in', top=True, right=True)
                 ax.tick_params(axis='y', which='major', labelsize=20)
                 ax.tick_params(axis='x', which='major', labelsize=20)
                 ax.tick_params(axis='both', which='major', length=10, width=1)
+                ax.text(0.05, 0.92, fr"{clean_star_name3(self.star_name)} H$\alpha$",
+                        color="k", fontsize=18, transform=ax.transAxes,
+                        bbox=dict(
+                            facecolor='white',  # Box background color
+                            edgecolor='black',  # Box border color
+                            boxstyle='square,pad=0.3',  # Rounded box with padding
+                            alpha=0.9  # Slight transparency
+                        )
+                        )
                 ax.yaxis.get_offset_text().set_size(20)
-                ax.legend(loc="upper right", fontsize=18)
-                ax.set_xlim(6500, 6700)
-                mask = (wavs[1] >= 6500) & (wavs[1] <= 6700)
-                ax.set_ylim(0.5, np.max(fluxes[1][mask]) + 0.25)
+                ax.set_xlim(6562.8-6562.8*500/3e5, 6562.8+6562.8*500/3e5)
+                mask = (wavs[1] >= 6562.8-6562.8*500/3e5) & (wavs[1] <= 6562.8+6562.8*500/3e5)
+
+                # Add colorbar
+                cbar = fig.colorbar(sm, ax=ax, pad=0.02)
+                cbar.set_label("BJD-2400000", fontsize=20)
+                cbar.ax.tick_params(labelsize=18)
+
+                ax.set_ylim(np.min([arr[mask].min() for arr in fluxes]) - 0.25, np.max([arr[mask].max() for arr in fluxes]) + 0.25)
                 fig.savefig(f"APO_Spectra/SpectrumPlots/Multi_Epoch/HAlpha/ME_HAlpha_{self.star_name}.pdf",
                             bbox_inches="tight", dpi=300)
                 plt.close()
@@ -283,7 +311,7 @@ class ARCESSpectrum:
                     ax.plot(wavs[i], fluxes[i], c=colors[i], label=f"HJD={jds[i]:.3f}")
                 ax.set_title(fr'Multi-epoch {self.star_name} H$\beta$', fontsize=24)
                 ax.set_xlabel("Wavelength [Å]", fontsize=22)
-                ax.set_ylabel("Normalized Flux [ergs s$^{-1}$ cm$^{-2}$ Å$^{-1}$]", fontsize=22)
+                ax.set_ylabel("Normalized Flux", fontsize=22)
                 ax.tick_params(axis='both', which='both', direction='in', top=True, right=True)
                 ax.tick_params(axis='y', which='major', labelsize=20)
                 ax.tick_params(axis='x', which='major', labelsize=20)
