@@ -11,6 +11,8 @@ from cmcrameri import cm
 import json
 quantity_support()
 
+plt.rcParams['font.family'] = 'Trebuchet MS'
+
 def add_constellations(ax, geojson_data, label_fontsize=8):
     for feature in geojson_data['features']:
         name = feature['id']  # constellation name
@@ -56,28 +58,37 @@ def add_constellations(ax, geojson_data, label_fontsize=8):
                     ha='center', va='center', zorder=3)
 
 def sky_plot(interactive=False):
-    dat = pd.read_fwf("sim-id", header=None)
+    dat = pd.read_csv("sim-id", header=None)
 
     ra = np.array(dat[0])  # Right Ascension in degrees
     dec = np.array(dat[1])  # Declination in degrees
-    star_names = np.array(dat[2], dtype=str)  # Assuming the 3rd column contains star names
+    star_names = np.array(dat[2], dtype=str)  # 3rd column contains star names
+    star_hds = np.array(dat[3])
 
     chiron_inventory = pd.read_csv("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt",
                                    header=None)
+    chiron_names = np.array(chiron_inventory[0])
+
     apo_inventory = pd.read_csv("APO_Spectra/APOInventoryRV_Bisector.txt", header=None)
+    apo_names =  np.array(apo_inventory[0])
 
     hst_inventory = pd.read_csv("HST_Spectra/HSTInventory.txt", header=None)
+    hst_names = np.array(hst_inventory[1])
+    hst_counts = np.array(hst_inventory[2])
 
     overall_obs_count = []
-    for name in star_names:
+    for name, hd in zip(star_names, star_hds):
         individual_obs_count = 0
         # breakpoint()
-        if name in np.array(chiron_inventory[0]):
-            individual_obs_count += np.count_nonzero(np.array(chiron_inventory[0]) == name)
-        if name in np.array(apo_inventory[0]):
-            individual_obs_count += np.count_nonzero(np.array(apo_inventory[0]) == name)
-        if name in np.array(hst_inventory[1]):
-            individual_obs_count += np.array(hst_inventory[2][np.array(hst_inventory[1]) == name])[0]
+        # if name in np.array(chiron_inventory[0]):
+        individual_obs_count += np.count_nonzero((chiron_names == name) | (chiron_names == hd))
+
+        # if name in np.array(apo_inventory[0]):
+        individual_obs_count += np.count_nonzero((apo_names == name) | (apo_names == hd))
+
+        mask = (hst_names == name) | (hst_names == hd)
+        if np.any(mask):
+            individual_obs_count += hst_counts[mask][0]
         overall_obs_count.append(individual_obs_count)
 
     data = Table()
@@ -105,7 +116,7 @@ def sky_plot(interactive=False):
 
     # Add interactivity with mplcursors
     cursor = mplcursors.cursor(scatter, hover=True)
-    cursor.connect("add", lambda sel: sel.annotation.set_text(star_names[sel.index]))
+    cursor.connect("add", lambda sel: sel.annotation.set_text(f"{star_names[sel.index]}—{overall_obs_count[sel.index]}"))
     ax.set_title("Be+sdOB Targets", fontsize=20)
     with open("constellations_lines.json", "r") as f:
         constellation_data = json.load(f)
@@ -136,4 +147,4 @@ def rv_plotter(filename):
                 dpi=300)
     plt.close()
 
-# sky_plot(interactive=False)
+sky_plot(interactive=False)

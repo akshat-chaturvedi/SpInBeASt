@@ -225,8 +225,8 @@ def rv_plot(star_name, show_raw_plot=False, params=None, t_0=None):
 
 if __name__ == '__main__':
     print(spin_beast)
-    dat = pd.read_csv("~/Downloads/HR2142_archival_peters.txt", header=None)
-    rv_plot("HD 41335_peters", show_raw_plot=True)
+    dat = pd.read_csv("Sandbox/apjaad964t3_ascii.txt", header=None)
+    rv_plot("HD55606", show_raw_plot=True)
 
     # opt_dat = pd.read_csv("RV_Plots/Optical/HD 35165_BeSS/HD 35165_BeSS_phase_folded.txt")
     # opt_model = pd.read_csv("RV_Plots/Optical/HD 35165_BeSS/HD 35165_BeSS_phase_folded_model.txt")

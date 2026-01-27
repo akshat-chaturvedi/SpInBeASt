@@ -9,7 +9,7 @@ from chiron import *
 from arces import *
 from hst import *
 from chara import *
-from misc_analysis import *
+# from misc_analysis import *
 import logging
 
 # __version__ = '0.1 | 2025/07/21' # First version with number and new name :)
@@ -17,7 +17,8 @@ import logging
 # __version__ = '1.1 | 2025/07/23' # Added visual orbit analysis code
 # __version__ = '1.2 | 2025/07/25' # Cleaning up file structure, visual changes to plots, added stellar props dictionary
 # __version__ = '1.3 | 2025/08/13' # Added scripts, TLUSTY model generator, and CCF analysis functionality for HST/STIS spectra
-__version__ = '1.4 | 2025/12/10' # Updated bisector method and error calculation, added Na doublet RV functionality, added archival spectra analysis functionality
+# __version__ = '1.4 | 2025/12/10' # Updated bisector method and error calculation, added Na doublet RV functionality, added archival spectra analysis functionality
+__version__ = '1.5 | 2026/01/26' # Updated bisector method, added new systems to star_props, added Gaussian fitting to HST CCFs
 
 RED = '\033[91m'
 GREEN = '\033[92m'
@@ -46,7 +47,7 @@ def apo_main(file_name: str):
     )
     star = ARCESSpectrum(file_name)
     star.spec_plot(full_spec=True, na_1_doublet=True)
-    star.multi_epoch_spec()
+    # star.multi_epoch_spec()
     star.radial_velocity_bisector()
     star.radial_velocity_doublet()
     logging.info(f'ARCES Spectrum Analyzed: {star.star_name}, Observation Date: {star.obs_date}')
@@ -78,8 +79,8 @@ def chiron_main(file_name: str):
     )
 
     star = CHIRONSpectrum(file_name)
-    star.blaze_corrected_plotter(he_1_6678=True)
-    star.multi_epoch_spec(avg_h_alpha=True)
+    star.blaze_corrected_plotter(he_1_6678=True, full_spec=True, na_1_doublet=False)
+    # star.multi_epoch_spec(avg_h_alpha=True)
     # star.multi_epoch_spec(dynamic_h_alpha=True, p=236.50, t_0=2458672.10, na_1_doublet=False, avg_na_1_doublet=False,
     #                       dynamic_na_doublet=False)
     # star.radial_velocity()
@@ -100,20 +101,20 @@ if __name__ == '__main__':
     print(f"{spin_beast}")
     t1 = time.perf_counter()
     # chiron_fits_files = list_fits_files("CHIRON_Spectra/StarSpectra/")
-    # chiron_fits_files += list_fits_files("CHIRON_Spectra/Archival/")
-    # chiron_fits_files = glob.glob("CHIRON_Spectra/StarSpectra/alfAra*.fits")
-    apo_fits_files = list_fits_files("APO_Spectra/Spec_Reductions/Final/UT241220/")
-    # apo_fits_files = glob.glob("APO_Spectra/FitsFiles/tellV729*.ex.ec.fits")
+    # chiron_fits_files = list_fits_files("CHIRON_Spectra/Archival/")
+    # chiron_fits_files = glob.glob("CHIRON_Spectra/StarSpectra/HR2249*.fits")
+    apo_fits_files = list_fits_files("APO_Spectra/FitsFiles/")
+    # apo_fits_files = glob.glob("APO_Spectra/FitsFiles/tellHD043544.0049.ex.ec.fits")
     # chiron_main("CHIRON_Spectra/StarSpectra/alfAra_First.fits")
     # apo_main()
     # hst_main()
     # hst_fits_files = list_fits_files_hst("HST_Spectra")
-    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventory.txt", "r") as f:
-    #     # Read the names
+    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "r") as f:
+    # #     # Read the names
     #     star_names = sorted(f.read().splitlines())
-    #
-    # Write back to the file
-    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventory.txt", "w") as file:
+    # #
+    # # Write back to the file
+    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "w") as file:
     #     file.write("\n".join(star_names))
 
     # sky_plot()
@@ -160,6 +161,3 @@ if __name__ == '__main__':
     t2 = time.perf_counter()
     print(f'Finished in \033[94m{round(t2 - t1, 2)}\033[0m second(s)')
     print("\a")
-
-# Finished in 166.4 second(s) - w/o multiproc
-# Finished in 42.56 second(s) - w/ multiproc

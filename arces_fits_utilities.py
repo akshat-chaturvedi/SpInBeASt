@@ -96,4 +96,13 @@ def file_renamer(file_name):
 
 
 if __name__ == '__main__':
-    time_correcter("Sandbox/tellTOI1287.0015.ex.ec.fits")
+    pass
+    # import glob
+    # import os
+    #
+    # os.chdir("APO_Spectra/Spec_Reductions/Final/UT250619")
+    #
+    # files = glob.glob("*.ex.ec.fits")
+    # for file in files:
+    #     print(file)
+    #     file_renamer(file)

@@ -201,8 +201,8 @@ class CHIRONSpectrum:
             wavs = []
             fluxes = []
             for j in range(3200):
-                wavs.append(self.dat[3][j][0])
-                fluxes.append(self.dat[3][j][1])
+                wavs.append(self.dat[8][j][0])
+                fluxes.append(self.dat[8][j][1])
 
             if self.star_name == 'HR 2142' and self.obs_date == '2024-12-13':
                 continuum_fit, mask = recursive_sigma_clipping(wavs, fluxes, self.star_name, self.obs_date, order=39,
@@ -224,7 +224,7 @@ class CHIRONSpectrum:
             ax.tick_params(axis='y', which='major', labelsize=20)
             ax.tick_params(axis='x', which='major', labelsize=20)
             ax.tick_params(axis='both', which='major', length=10, width=1)
-            ax.set_xlim(4700, 4730)
+            ax.set_xlim(4915, 4930)
             ax.yaxis.get_offset_text().set_size(20)
             fig.savefig(f"CHIRON_Spectra/StarSpectra/Plots/He_I_6678/He_I_6678_{self.star_name}_{self.obs_date}.pdf",
                         bbox_inches="tight", dpi=300)
@@ -951,19 +951,18 @@ class CHIRONSpectrum:
 
         plot_ind = np.where((((np.array(wavs) - 6562.8) / 6562.8) * 3e5 > -500) &
                             (((np.array(wavs) - 6562.8) / 6562.8) * 3e5 < 500) &
-                            ((np.array(fluxes) - 1) > 0.25 * max(np.array(fluxes) - 1)))[0]
+                            ((np.array(fluxes)) > 1 + 0.25 * max(np.array(fluxes-1))))[0]
 
-        ccf_ind = np.where((v_grid > -500) & (v_grid < 500))[0]
+        ccf_ind = np.where((v_grid > -600) & (v_grid < 600))[0]
         # plot_ind = np.where((np.array(fluxes[plot_ind1]) - 1) > 0.25 * max(np.array(fluxes[plot_ind1]) - 1))[0]
 
         fig, ax = plt.subplots(2,1, sharex=True, figsize=(20, 10), gridspec_kw={'height_ratios': [4, 1]})
         plt.subplots_adjust(hspace=0)
         fig.supxlabel("Wavelength [Å]", fontsize=22, y=0.03)
-        ax[0].plot(dlamb, np.array(fluxes) - 1,
-                color="black", label="CCF")
+        ax[0].plot(dlamb, np.array(fluxes),color="black", label="CCF")
         # ax[0].plot(v_grid, ker, c="r")
-        ax[0].vlines(6562.8 + 6562.8*rad_vel_bc_corrected/3e5, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1, lw=3)
-        ax[0].hlines(0.25 * max(fluxes - 1), dlamb[plot_ind[0]], dlamb[plot_ind[-1]], color="k", alpha=0.8, zorder=0)
+        ax[0].vlines(6562.8 + 6562.8*rad_vel_bc_corrected/3e5, 1 + 0.15 * max(fluxes-1), 1 + 0.35 * max(fluxes-1), color="r", zorder=1, lw=3)
+        ax[0].hlines(1 + 0.25 * max(fluxes-1), dlamb[plot_ind[0]], dlamb[plot_ind[-1]], color="k", alpha=0.8, zorder=0)
         ax[0].tick_params(axis='x', labelsize=20)
         ax[0].tick_params(axis='y', labelsize=20)
         ax[0].tick_params(axis='both', which='both', direction='in', labelsize=22, top=False, right=True, length=10,
@@ -990,8 +989,8 @@ class CHIRONSpectrum:
 
         ax[1].plot((6562.8+6562.8*(v_grid+self.bc_corr/1000)/3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=3)
         ax[1].set_ylabel("CCF", fontsize=22)
-        ax[1].hlines(0, 6562.8-6562.8*500/3e5, 6562.8+6562.8*500/3e5, color="k", linestyle="--", zorder=0)
-        ax[1].set_ylim(-1, 1)
+        ax[1].hlines(0, 6562.8-6562.8*500/3e5, 6562.8+6562.8*500/3e5, color="gray", linestyle="--", zorder=0)
+        ax[1].set_ylim(-2, 2)
         ax[1].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
                           width=1)
         # ax.set_title("Cross Correlation Function w/ Gaussian Fit", fontsize=26)

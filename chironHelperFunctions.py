@@ -143,8 +143,8 @@ def gaussian_pair(v, sep, sigma):
     Returns:
         Array of corresponding y values.
     """
-    g1 = np.exp(-0.5 * ((v - sep/2) / sigma) ** 2)
-    g2 = -np.exp(-0.5 * ((v + sep / 2) / sigma) ** 2)
+    g1 = np.exp(-0.5 * ((v + sep/2) / sigma) ** 2)
+    g2 = -np.exp(-0.5 * ((v - sep / 2) / sigma) ** 2)
     return g1 + g2
 
 def velocity_grid(wavelengths, line_center):
@@ -210,8 +210,7 @@ def find_all_crossings(x, y, level):
 
 def estimate_sep_from_25pct(wavelengths, fluxes, line_center):
     """
-    Returns Gaussian separation SEP based on the two *outermost*
-    crossings of the 25% flux level.
+    Returns Gaussian separation SEP based on the two *outermost* crossings of the 25% flux level.
     """
     # define 25% level between min and max
     fmin, fmax = np.min(fluxes), np.max(fluxes)
@@ -257,14 +256,16 @@ def shafter_bisector_velocity(wavelengths, fluxes, line_center=6562.8, sep=500, 
     sigma = sep/(7*np.sqrt(2*np.log(2)))
 
     v_obs = velocity_grid(wavelengths, line_center)
-    interp_flux = interp1d(v_obs, fluxes-1, kind="linear", bounds_error=False, fill_value=0)
+    interp_flux = interp1d(v_obs, fluxes, kind="linear", bounds_error=False, fill_value=1)
 
     v_grid = np.arange(-v_window, v_window+v_step, v_step)
     flux_grid = interp_flux(v_grid)
+    flux_grid -= np.median(flux_grid)
 
     kernel = gaussian_pair(v_grid, sep=sep, sigma=sigma)
     ccf = np.correlate(flux_grid, kernel, mode="same")
 
+    ccf = (ccf-np.median(ccf)) / np.std(ccf)
     bisector_velocity = find_zero_crossing_nearest_zero(v_grid, ccf, print_flag)
 
     return bisector_velocity, v_grid, ccf, sigma

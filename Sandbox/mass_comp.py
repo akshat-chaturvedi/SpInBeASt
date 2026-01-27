@@ -23,7 +23,7 @@ for key in stellar_properties.keys():
 m_p = np.array(m_p)
 
 plt.rcParams['font.family'] = 'Geneva'
-fig, ax = plt.subplots(figsize=(10, 10))
+fig, ax = plt.subplots(figsize=(20, 10))
 scatter1 = ax.scatter(t_p, l_p, marker="o", s=150, zorder=2, c=m_p, cmap=cm.managua, edgecolors="k", linewidth=2, label="Be")
 scatter2 = ax.scatter(t_c, l_c, marker="d", s=150, zorder=2, c=m_p, cmap=cm.managua, edgecolors="k", linewidth=2, label="Companion")
 # scatter1 = ax.scatter(t_p, l_p, edgecolor="k", marker="o", s=100, facecolor='none', zorder=2)
@@ -35,7 +35,7 @@ ax.tick_params(axis='x', which='major', labelsize=20)
 ax.tick_params(axis='both', which='major', length=10, width=1)
 ax.set_xlabel(r"T$_{\text{eff}}$ [kK]", fontsize=22)
 ax.set_ylabel(r"log(L/L$_{☉}$)", fontsize=22)
-ax.set_xlim(8,55)
+ax.set_xlim(8,90)
 ax.grid(visible=True, alpha=0.5, linestyle="--")
 ax.set_ylim(-0.5,4.6)
 ax.legend(loc="lower left", fontsize=22)
