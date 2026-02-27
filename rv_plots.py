@@ -1,5 +1,6 @@
 import thejoker as tj
 import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
 import numpy as np
 from thejoker.plot import plot_rv_curves
 import pandas as pd
@@ -8,7 +9,7 @@ from astropy.time import Time
 import pickle
 import os
 import corner
-from binarystarsolve.binarystarsolve import StarSolve
+import seaborn as sns
 from SpectrumAnalyzer import spin_beast
 
 RED = '\033[91m'
@@ -91,7 +92,26 @@ def rv_plot(star_name, show_raw_plot=False, params=None, t_0=None):
 
     joker = tj.TheJoker(prior)
     prior_samples = prior.sample(size=200_000)
-    samples = joker.rejection_sample(data, prior_samples, max_posterior_samples=512)
+    samples = joker.rejection_sample(data, prior_samples, max_posterior_samples=2096)
+
+    def get_median_and_errors(arr):
+        q16, q50, q84 = np.percentile(arr, [16, 50, 84])
+        return q50, q50 - q16, q84 - q50
+
+    P_med, P_lo, P_hi = get_median_and_errors(samples['P'].value)
+    e_med, e_lo, e_hi = get_median_and_errors(samples['e'].value)
+    omega_med, omega_lo, omega_hi = get_median_and_errors(samples['omega'].value)
+    M0_med, M0_lo, M0_hi = get_median_and_errors(samples['M0'].value)
+    K_med, K_lo, K_hi = get_median_and_errors(samples['K'].to_value(u.km / u.s))
+    v0_med, v0_lo, v0_hi = get_median_and_errors(samples['v0'].to_value(u.km / u.s))
+
+    print("Best-fit orbital parameters (median ± 1σ):")
+    print(f"P  = {P_med:.5f} +{P_hi:.5f} -{P_lo:.5f} day")
+    print(f"e  = {e_med:.5f} +{e_hi:.5f} -{e_lo:.5f}")
+    print(f"ω  = {omega_med:.5f} +{omega_hi:.5f} -{omega_lo:.5f} rad")
+    print(f"M0 = {M0_med:.5f} +{M0_hi:.5f} -{M0_lo:.5f} rad")
+    print(f"K  = {K_med:.5f} +{K_hi:.5f} -{K_lo:.5f} km/s")
+    print(f"v0 = {v0_med:.5f} +{v0_hi:.5f} -{v0_lo:.5f} km/s")
 
     params = np.vstack([
         samples['P'].value,  # Period (days)
@@ -150,6 +170,7 @@ def rv_plot(star_name, show_raw_plot=False, params=None, t_0=None):
 
     # Create TwoBody object with orbital parameters
     orbit = samples.median_period().get_orbit()
+    # breakpoint()
 
     # Create phase-folded RV plot
     P = orbit.P
@@ -188,7 +209,7 @@ def rv_plot(star_name, show_raw_plot=False, params=None, t_0=None):
                    width=1)
     ax[0].text(
         0.85, 0.68,  # (x, y) in axes coordinates (1.0 is right/top)
-        f"P={orbit_dict['P']:.2f}\nT0={t0.value:.2f}\nM={orbit_dict['M0']:.2f}\nomega={orbit_dict['omega']:.2f}\n"
+        f"P={orbit_dict['P']:.2f}$^{{+{P_hi:.3f}}}_{{-{P_lo:.3f}}}$\nT0={t0.value:.2f}\nM={orbit_dict['M0']:.2f}\nomega={orbit_dict['omega']:.2f}\n"
         f"e={orbit_dict['e']:.2f}\nK={orbit_dict['K']:.2f}"
         f"\nv0={orbit_dict['v0']:.2f}",  # Text string
         ha='left', va='bottom',  # Horizontal and vertical alignment
@@ -220,19 +241,65 @@ def rv_plot(star_name, show_raw_plot=False, params=None, t_0=None):
     final_dat.to_csv(f"RV_Plots/{spec_flag}/{star_name}/{star_name}_phase_folded_model.txt", index=False)
 
     print(f"{GREEN}RV orbit-fitting analysis finished!{RESET}")
+
+    def mass_function(p, v_max):
+        g = 6.67e-8
+        return (p * v_max ** 3) / (2 * np.pi * g)
+
+    def mass_unseen(p, v_max, q, inc):
+        return mass_function(p, v_max) * ((1 + q) ** 2) / (np.sin(np.deg2rad(inc)) ** 3) / 2e33
+
+    q_range = np.linspace(0, 20, 1000)
+    inc_range = np.linspace(0.1, 90, 1000)
+
+    qq, ii = np.meshgrid(q_range, inc_range)
+
+    mm = mass_unseen(P_med * 86400, abs(K_med)*1e5, qq, ii)
+
+    norm = Normalize(vmin=np.min(mm), vmax=5)
+
+    plt.rcParams['font.family'] = 'Trebuchet MS'
+    fig, ax = plt.subplots(figsize=(10, 10))
+    mesh = ax.pcolormesh(qq, ii, mm, norm=norm,
+                         shading='auto', cmap='rocket', rasterized=True)
+    cbar = fig.colorbar(mesh, ax=ax, pad=0.01, extend='max')
+    cbar.set_label(r'M$_{\text{sdO}}$ [M$_{☉}$]', fontsize=20)
+    cbar.ax.tick_params(labelsize=18, length=8, width=1)
+    ax.set_xlabel(r"q (M$_{\text{Be}}$ / M$_{\text{sdO}}$)", fontsize=20)
+    ax.set_ylabel("Inclination [°]", fontsize=20)
+    ax.tick_params(axis='both', which='both', direction='in', labelsize=18, top=True, right=True, length=10,
+                   width=1)
+    ax.text(
+        0.05, 0.93,  # (x, y) in axes coordinates (1.0 is right/top)
+        f"{star_name} Mass Plane",  # Text string
+        ha='left', va='bottom',  # Horizontal and vertical alignment
+        transform=ax.transAxes,  # Use axes coordinates
+        fontsize=16,
+        fontweight='bold',
+        bbox=dict(
+            facecolor='white',  # Box background color
+            edgecolor='black',  # Box border color
+            boxstyle='square,pad=0.3',  # Rounded box with padding
+            alpha=0.9  # Slight transparency
+        )
+    )
+    fig.savefig(f"RV_Plots/{spec_flag}/{star_name}/{star_name}_mass_plane.pdf", bbox_inches="tight", dpi=600)
+
     return
 
 
 if __name__ == '__main__':
     print(spin_beast)
-    dat = pd.read_csv("Sandbox/apjaad964t3_ascii.txt", header=None)
-    rv_plot("HD55606", show_raw_plot=True)
+    dat = pd.read_csv("CHIRON_Spectra/StarSpectra/RV_Measurements/alf Ara_RV.txt", header=None)
+    # dat = pd.read_csv("APO_Spectra/RV_Measurements/HD60855_RV.txt", header=None)
+    # dat = pd.read_csv("RV_Data/V378Pup.txt", header=None)
+    rv_plot("HD 158427", show_raw_plot=True)
 
-    # opt_dat = pd.read_csv("RV_Plots/Optical/HD 35165_BeSS/HD 35165_BeSS_phase_folded.txt")
-    # opt_model = pd.read_csv("RV_Plots/Optical/HD 35165_BeSS/HD 35165_BeSS_phase_folded_model.txt")
+    # opt_dat = pd.read_csv("RV_Plots/Optical/HD 43544/HD 43544_phase_folded.txt")
+    # opt_model = pd.read_csv("RV_Plots/Optical/HD 43544/HD 43544_phase_folded_model.txt")
     #
-    # uv_dat = pd.read_csv("RV_Plots/Optical/HD 35165_He_BeSS/HD 35165_He_BeSS_phase_folded.txt")
-    # uv_model = pd.read_csv("RV_Plots/Optical/HD 35165_He_BeSS/HD 35165_He_BeSS_phase_folded_model.txt")
+    # uv_dat = pd.read_csv("RV_Plots/UV/HD 43544/HD 43544_phase_folded.txt")
+    # uv_model = pd.read_csv("RV_Plots/UV/HD 43544/HD 43544_phase_folded_model.txt")
     #
     # fig, ax = plt.subplots(2,1, sharex=True, figsize=(20, 10), gridspec_kw={'height_ratios': [4, 1]})
     # plt.subplots_adjust(hspace=0)
@@ -246,7 +313,7 @@ if __name__ == '__main__':
     # ax[0].set_ylabel("Radial Velocity [km s$^{-1}$]", fontsize=22)
     # ax[0].legend(fontsize=22)
     # ax[0].set_xlim(0, 1)
-    # ax[0].tick_params(axis='both', which='both', diorection='in', labelsize=22, top=True, right=True, length=10,
+    # ax[0].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
     #                   width=1)
     # ax[1].scatter(opt_dat['Phase'], opt_dat['Residuals'], c="red", s=100, zorder=15, edgecolor='k', linewidth=2)
     # ax[1].scatter(uv_dat['Phase'], uv_dat['Residuals'], c="dodgerblue", s=100, zorder=15, edgecolor='k', linewidth=2, marker='s')
@@ -255,5 +322,5 @@ if __name__ == '__main__':
     #                   width=1)
     # ax[1].yaxis.get_offset_text().set_size(22)
     # ax[1].hlines(0, 0, 1, color="k", linestyle="--", zorder=0)
-    # fig.savefig(f"RV_Plots/HD035165_phase_folded_both_BeSS.pdf", bbox_inches="tight", dpi=300)
+    # fig.savefig(f"RV_Plots/SB2/HD43544_phase_folded_both.pdf", bbox_inches="tight", dpi=300)
     # plt.close()

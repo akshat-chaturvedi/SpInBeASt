@@ -4,7 +4,8 @@ from astropy.io import fits
 from scipy.interpolate import CubicSpline
 from chironHelperFunctions import (shafter_bisector_velocity, clean_star_name,
                                    list_fits_files, clean_star_name_2, analytic_sigma_v_mc_from_nonparam,
-                                   clean_star_name3, wav_corr, make_vel_wav_transforms)
+                                   clean_star_name3, wav_corr, make_vel_wav_transforms, stellar_rest_frame,
+                                   barycentric_correct, der_snr)
 from astropy.time import Time
 from barycorrpy import get_BC_vel, utc_tdb
 import os
@@ -20,6 +21,7 @@ def uves_spec(file_name):
     with fits.open(file_name) as hdul:
         dat = hdul[1].data
         hdr = hdul[0].header
+        print(hdr["SPECSYS"])
         # breakpoint()
 
     # XShooter spectra have wavelengths in nm instead of Å
@@ -35,7 +37,7 @@ def uves_spec(file_name):
                          ephemeris="de430")[0][0]
     bc_corr_time = utc_tdb.JDUTC_to_BJDTDB(JDUTC=obs_jd, starname=star_name, lat=-24.627222, longi=-70.404167, alt=2635,
                                            ephemeris="de430")[0][0]
-    print(bc_corr)
+    # print(bc_corr)
 
     rec_list = [6410, 6425, 6500, 6540, 6600, 6615, 6650, 6695]
     rec_points = []
@@ -91,28 +93,34 @@ def uves_spec(file_name):
     wavs = dat["WAVE"][0][ind]
     fluxes = dat["FLUX_REDUCED"][0][ind]/y
 
-    v_bis, v_grid, ccf, gaussian_width = shafter_bisector_velocity(wavs, fluxes, print_flag=False)
+    wavs = barycentric_correct(wavs, bc_corr / 1000)
+
+    v_bis, v_grid, ccf, gaussian_width = shafter_bisector_velocity(wavs, fluxes, print_flag=False, v_step=2.26, sep=600)
 
     sig_ind = np.where((wavs > 6600) & (wavs < 6625))[0]
 
-    res = analytic_sigma_v_mc_from_nonparam(wavs, fluxes,
-                                            gaussian_width_kms=gaussian_width,
-                                            p=0.25,
-                                            Ntop=5,
-                                            M_inject=400,
-                                            MC_samples=10_000)
+    # res = analytic_sigma_v_mc_from_nonparam(wavs, fluxes,
+    #                                         gaussian_width_kms=gaussian_width,
+    #                                         p=0.25,
+    #                                         Ntop=5,
+    #                                         M_inject=400,
+    #                                         MC_samples=10_000)
 
 
-    err_v_bis = float(res["sigma_v_median"])
+    # err_v_bis = float(res["sigma_v_median"])
+    dx = 300  # Half the separation of the double Gaussians from above
+    err_v_bis = (np.sqrt(7) / np.log(4)) * (1 / der_snr(fluxes)) * np.sqrt(
+        ((1 + 0.25 * max(np.array(fluxes - 1))) * dx * 2.26))
 
-    rad_vel_bc_corrected = v_bis + bc_corr/1000  # bc_corr has a sign, so need to add (otherwise might add when negative)
 
-    dlamb, coeff = wav_corr(np.array(wavs), bc_corr, v_bis)
+    rad_vel_bc_corrected = v_bis  # bc_corr has a sign, so need to add (otherwise might add when negative)
+
+    dlamb = stellar_rest_frame(np.array(wavs), v_bis)
 
     plot_ind = np.where((((np.array(wavs) - 6562.8) / 6562.8) * 3e5 > -500) &
                         (((np.array(wavs) - 6562.8) / 6562.8) * 3e5 < 500) &
                         ((np.array(fluxes) - 1) > 0.25 * max(np.array(fluxes) - 1)))[0]
-
+    # breakpoint()
     ccf_ind = np.where((v_grid > -500) & (v_grid < 500))[0]
     # plot_ind = np.where((np.array(fluxes[plot_ind1]) - 1) > 0.25 * max(np.array(fluxes[plot_ind1]) - 1))[0]
 
@@ -122,8 +130,10 @@ def uves_spec(file_name):
     ax[0].plot(dlamb, np.array(fluxes) - 1,
                color="black", label="CCF")
     # ax[0].plot(v_grid, ker, c="r")
-    ax[0].vlines(6562.8 + 6562.8 * v_bis / 3e5, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
-                 lw=3)
+    # ax[0].vlines(6562.8 + 6562.8 * v_bis / 3e5, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
+    #              lw=3) # Barycentric rest frame
+    ax[0].vlines(6562.8, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
+                 lw=3) # Stellar rest frame
     ax[0].hlines(0.25 * max(fluxes - 1), dlamb[plot_ind[0]], dlamb[plot_ind[-1]], color="k", alpha=0.8, zorder=0)
     ax[0].tick_params(axis='x', labelsize=20)
     ax[0].tick_params(axis='y', labelsize=20)
@@ -150,9 +160,11 @@ def uves_spec(file_name):
     secax_x.tick_params(labelsize=22, which='both')
     secax_x.tick_params(axis='both', which='both', direction='in', length=10, width=1)
 
-    ax[1].plot((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=3)
+    # ax[1].plot((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=3) # Barycentric rest frame
+    ax[1].plot((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10,
+               linewidth=3)  # Barycentric rest frame
     ax[1].set_ylabel("CCF", fontsize=22)
-    ax[1].hlines(0, min((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]), max((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]),
+    ax[1].hlines(0, min((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind]), max((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind]),
                  color="k", linestyle="--", zorder=0)
     ax[1].set_ylim(-1, 1)
     ax[1].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
@@ -440,6 +452,7 @@ def feros_spec(file_name):
     with fits.open(file_name) as hdul:
         dat = hdul[1].data
         hdr = hdul[0].header
+        print(hdr["SPECSYS"])
 
     # XShooter spectra have wavelengths in nm instead of Å
     if hdr["INSTRUME"] == "XSHOOTER":
@@ -451,9 +464,13 @@ def feros_spec(file_name):
 
     # star_name = "HD 63462"
 
-    bc_corr = get_BC_vel(JDUTC=obs_jd, starname=star_name, obsname="La Silla Observatory (ESO)", ephemeris="de430")[0][0]
-    bc_corr_time = utc_tdb.JDUTC_to_BJDTDB(JDUTC=obs_jd, starname=star_name, obsname="La Silla Observatory (ESO)",
-                                           ephemeris="de430")[0][0]
+    try:
+        # bc_corr = get_BC_vel(JDUTC=obs_jd, starname=star_name, obsname="La Silla Observatory (ESO)", ephemeris="de430")[0][0]
+        bc_corr_time = utc_tdb.JDUTC_to_BJDTDB(JDUTC=obs_jd, starname=star_name, obsname="La Silla Observatory (ESO)",
+                                               ephemeris="de430")[0][0]
+    except:
+        print(f"Couldn't find BC for {star_name}!")
+        bc_corr_time = obs_jd
 
     rec_list = [6410, 6425, 6500, 6540, 6600, 6615, 6650, 6695]
     rec_points = []
@@ -502,25 +519,28 @@ def feros_spec(file_name):
     wavs = dat["WAVE"][0][ind]
     fluxes = dat["FLUX"][0][ind]/y
 
-    v_bis, v_grid, ccf, gaussian_width = shafter_bisector_velocity(wavs, fluxes, print_flag=False)
+    v_bis, v_grid, ccf, gaussian_width = shafter_bisector_velocity(wavs, fluxes, print_flag=False, sep=600, v_step=2.26)
 
     sig_ind = np.where((wavs > 6600) & (wavs < 6625))[0]
-    sig_cont = np.std(fluxes[sig_ind] - 1)
-
-    res = analytic_sigma_v_mc_from_nonparam(wavs, fluxes,
-                                            gaussian_width_kms=gaussian_width,
-                                            p=0.25,
-                                            Ntop=5,
-                                            M_inject=400,
-                                            MC_samples=10_000)
+    # sig_cont = np.std(fluxes[sig_ind] - 1)
+    #
+    # res = analytic_sigma_v_mc_from_nonparam(wavs, fluxes,
+    #                                         gaussian_width_kms=gaussian_width,
+    #                                         p=0.25,
+    #                                         Ntop=5,
+    #                                         M_inject=400,
+    #                                         MC_samples=10_000)
 
     # err_v_bis = (sig_cont * gaussian_width) / (max(np.array(fluxes) - 1) * 0.25 * np.sqrt(-2 * np.log(0.25)))
-    err_v_bis = float(res["sigma_v_median"])
+    # err_v_bis = float(res["sigma_v_median"])
+    dx = 300  # Half the separation of the double Gaussians from above
+    err_v_bis = (np.sqrt(7) / np.log(4)) * (1 / der_snr(fluxes)) * np.sqrt(
+        ((1 + 0.25 * max(np.array(fluxes - 1))) * dx * 2.26))
 
     # err_v_bis = 0.5
-    rad_vel_bc_corrected = v_bis + bc_corr/1000  # bc_corr has a sign, so need to add (otherwise might add when negative)
+    rad_vel_bc_corrected = v_bis  # Already in barycentric frame
 
-    dlamb, coeff = wav_corr(np.array(wavs), bc_corr, v_bis)
+    dlamb = stellar_rest_frame(np.array(wavs), v_bis)
 
     plot_ind = np.where((((np.array(wavs) - 6562.8) / 6562.8) * 3e5 > -500) &
                         (((np.array(wavs) - 6562.8) / 6562.8) * 3e5 < 500) &
@@ -534,8 +554,10 @@ def feros_spec(file_name):
     ax[0].plot(dlamb, np.array(fluxes) - 1,
                color="black", label="CCF")
     # ax[0].plot(v_grid, ker, c="r")
-    ax[0].vlines(6562.8 + 6562.8 * v_bis / 3e5, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
-                 lw=3)
+    # ax[0].vlines(6562.8 + 6562.8 * v_bis / 3e5, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
+    #              lw=3) # Barycentric rest frame
+    ax[0].vlines(6562.8, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
+                 lw=3) # Stellar rest frame
     ax[0].hlines(0.25 * max(fluxes - 1), dlamb[plot_ind[0]], dlamb[plot_ind[-1]], color="k", alpha=0.8, zorder=0)
     ax[0].tick_params(axis='x', labelsize=20)
     ax[0].tick_params(axis='y', labelsize=20)
@@ -562,10 +584,13 @@ def feros_spec(file_name):
     secax_x.tick_params(labelsize=22, which='both')
     secax_x.tick_params(axis='both', which='both', direction='in', length=10, width=1)
 
-    ax[1].plot((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=3)
+    # ax[1].plot((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=3) # Barycentric rest frame
+    ax[1].plot((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=3) # Stellar rest frame
     ax[1].set_ylabel("CCF", fontsize=22)
-    ax[1].hlines(0, min((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]), max((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]),
-                 color="k", linestyle="--", zorder=0)
+    # ax[1].hlines(0, min((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]), max((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]),
+    #              color="k", linestyle="--", zorder=0) # Barycentric rest frame
+    ax[1].hlines(0, min((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind]), max((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind]),
+                 color="k", linestyle="--", zorder=0) # Stellar rest frame
     ax[1].set_ylim(-1, 1)
     ax[1].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
                       width=1)
@@ -675,9 +700,9 @@ def feros_spec(file_name):
             # print(f"Doublet Vel: {doublet_vel}")
 
             err_v_doublet = 0.5  # Arbitratry error amount, need to check this
-            rad_vel_doublet_corrected = doublet_vel + bc_corr / 1000  # self.bc_corr has a sign, so need to add (otherwise might add when negative)
+            rad_vel_doublet_corrected = doublet_vel  # self.bc_corr has a sign, so need to add (otherwise might add when negative)
 
-            dlamb, coeff = wav_corr(np.array(wavs), bc_corr, doublet_vel)
+            dlamb = wavs
 
             fig, ax = plt.subplots(1, 2, sharey=True, figsize=(20, 10))
             plt.subplots_adjust(wspace=0)
@@ -701,7 +726,7 @@ def feros_spec(file_name):
             ax[0].set_xlim(5889.95 - 5889.95 * 220 / 3e5, 5889.95 + 5889.95 * 220 / 3e5)
             ax[0].set_ylim(min(np.array(fluxes) - 1) - 0.02, max(np.array(fluxes) - 1) + 0.02)
             ax[0].text(0.55, 0.05, fr"{clean_star_name3(star_name)} Na I D$_1$"
-                                   f"\nBJD {bc_corr_time:.4f}\nRV = {vel_d1 + bc_corr / 1000:.3f}±{err_v_doublet:.3f} km/s",
+                                   f"\nBJD {bc_corr_time:.4f}\nRV = {vel_d1:.3f}±{err_v_doublet:.3f} km/s",
                        color="k", fontsize=18, transform=ax[0].transAxes,
                        bbox=dict(
                            facecolor='white',  # Box background color
@@ -728,7 +753,7 @@ def feros_spec(file_name):
             ax[1].set_xlim(5895.92 - 5895.92 * 220 / 3e5, 5895.92 + 5895.92 * 220 / 3e5)
             ax[1].set_ylim(min(np.array(fluxes) - 1) - 0.02, max(np.array(fluxes) - 1) + 0.02)
             ax[1].text(0.55, 0.05, fr"{clean_star_name3(star_name)} Na I D$_2$"
-                                   f"\nBJD {bc_corr_time:.4f}\nRV = {vel_d2 + bc_corr / 1000:.3f}±{err_v_doublet:.3f} km/s",
+                                   f"\nBJD {bc_corr_time:.4f}\nRV = {vel_d2:.3f}±{err_v_doublet:.3f} km/s",
                        color="k", fontsize=18, transform=ax[1].transAxes,
                        bbox=dict(
                            facecolor='white',  # Box background color
@@ -773,6 +798,7 @@ def harps_spec(file_name):
     with fits.open(file_name) as hdul:
         dat = hdul[1].data
         hdr = hdul[0].header
+        print(hdr["SPECSYS"])
 
     # XShooter spectra have wavelengths in nm instead of Å
     if hdr["INSTRUME"] == "XSHOOTER":
@@ -782,8 +808,8 @@ def harps_spec(file_name):
     obs_jd = Time(hdr['DATE-OBS'], format='isot', scale='utc').jd
     obs_date = hdr['DATE-OBS'].split("T")[0]
 
-    bc_corr = get_BC_vel(JDUTC=obs_jd, starname=star_name, obsname="La Silla Observatory (ESO)",
-                         ephemeris="de430")[0][0]
+    # bc_corr = get_BC_vel(JDUTC=obs_jd, starname=star_name, obsname="La Silla Observatory (ESO)",
+    #                      ephemeris="de430")[0][0]
     bc_corr_time = utc_tdb.JDUTC_to_BJDTDB(JDUTC=obs_jd, starname=star_name, obsname="La Silla Observatory (ESO)",
                                            ephemeris="de430")[0][0]
 
@@ -834,7 +860,7 @@ def harps_spec(file_name):
     wavs = dat["WAVE"][0][ind]
     fluxes = dat["FLUX"][0][ind]/y
 
-    v_bis, v_grid, ccf, gaussian_width = shafter_bisector_velocity(wavs, fluxes, print_flag=False)
+    v_bis, v_grid, ccf, gaussian_width = shafter_bisector_velocity(wavs, fluxes, print_flag=False, v_step=2.26, sep=600)
 
     plot_ind = np.where((((np.array(wavs) - 6562.8) / 6562.8) * 3e5 > -500) &
                                 (((np.array(wavs) - 6562.8) / 6562.8) * 3e5 < 500) &
@@ -842,22 +868,26 @@ def harps_spec(file_name):
     ccf_ind = np.where((v_grid > -500) & (v_grid < 500))[0]
     # plot_ind = np.where((np.array(fluxes[plot_ind1]) - 1) > 0.25 * max(np.array(fluxes[plot_ind1]) - 1))[0]
 
-    sig_ind = np.where((wavs > 6600) & (wavs < 6625))[0]
-    sig_cont = np.std(fluxes[sig_ind] - 1)
+    # sig_ind = np.where((wavs > 6600) & (wavs < 6625))[0]
+    # sig_cont = np.std(fluxes[sig_ind] - 1)
+    #
+    # res = analytic_sigma_v_mc_from_nonparam(wavs, fluxes,
+    #                                         gaussian_width_kms=gaussian_width,
+    #                                         p=0.25,
+    #                                         Ntop=5,
+    #                                         M_inject=400,
+    #                                         MC_samples=10_000)
+    #
+    # # err_v_bis = (sig_cont * gaussian_width) / (max(np.array(fluxes) - 1) * 0.25 * np.sqrt(-2 * np.log(0.25)))
+    # err_v_bis = float(res["sigma_v_median"])
+    dx = 300  # Half the separation of the double Gaussians from above
+    err_v_bis = (np.sqrt(7) / np.log(4)) * (1 / der_snr(fluxes)) * np.sqrt(
+        ((1 + 0.25 * max(np.array(fluxes - 1))) * dx * 2.26))
 
-    res = analytic_sigma_v_mc_from_nonparam(wavs, fluxes,
-                                            gaussian_width_kms=gaussian_width,
-                                            p=0.25,
-                                            Ntop=5,
-                                            M_inject=400,
-                                            MC_samples=10_000)
 
-    # err_v_bis = (sig_cont * gaussian_width) / (max(np.array(fluxes) - 1) * 0.25 * np.sqrt(-2 * np.log(0.25)))
-    err_v_bis = float(res["sigma_v_median"])
+    rad_vel_bc_corrected = v_bis  # bc_corr has a sign, so need to add (otherwise might add when negative)
 
-    rad_vel_bc_corrected = v_bis + bc_corr/1000  # bc_corr has a sign, so need to add (otherwise might add when negative)
-
-    dlamb, coeff = wav_corr(np.array(wavs), bc_corr, v_bis)
+    dlamb = stellar_rest_frame(np.array(wavs), v_bis)
 
     plot_ind = np.where((((np.array(wavs) - 6562.8) / 6562.8) * 3e5 > -500) &
                         (((np.array(wavs) - 6562.8) / 6562.8) * 3e5 < 500) &
@@ -872,8 +902,10 @@ def harps_spec(file_name):
     ax[0].plot(dlamb, np.array(fluxes) - 1,
                color="black", label="CCF")
     # ax[0].plot(v_grid, ker, c="r")
-    ax[0].vlines(6562.8 + 6562.8 * v_bis / 3e5, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
-                 lw=3)
+    # ax[0].vlines(6562.8 + 6562.8 * v_bis / 3e5, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
+    #              lw=3) # Barycentric rest frame
+    ax[0].vlines(6562.8, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
+                 lw=3) # Stellar rest frame
     ax[0].hlines(0.25 * max(fluxes - 1), dlamb[plot_ind[0]], dlamb[plot_ind[-1]], color="k", alpha=0.8, zorder=0)
     ax[0].tick_params(axis='x', labelsize=20)
     ax[0].tick_params(axis='y', labelsize=20)
@@ -900,10 +932,13 @@ def harps_spec(file_name):
     secax_x.tick_params(labelsize=22, which='both')
     secax_x.tick_params(axis='both', which='both', direction='in', length=10, width=1)
 
-    ax[1].plot((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=3)
+    # ax[1].plot((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=3) # Barycentric rest frame
+    ax[1].plot((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=3) # Stellar rest frame
     ax[1].set_ylabel("CCF", fontsize=22)
-    ax[1].hlines(0, min((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]), max((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]),
-                 color="k", linestyle="--", zorder=0)
+    # ax[1].hlines(0, min((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]), max((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]),
+    #              color="k", linestyle="--", zorder=0) # Barycentric rest frame
+    ax[1].hlines(0, min((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind]), max((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind]),
+                 color="k", linestyle="--", zorder=0) # Stellar rest frame
     ax[1].set_ylim(-1, 1)
     ax[1].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
                       width=1)
@@ -1013,10 +1048,9 @@ def harps_spec(file_name):
         # print(f"Doublet Vel: {doublet_vel}")
 
         err_v_doublet = 0.5  # Arbitratry error amount, need to check this
-        rad_vel_doublet_corrected = doublet_vel + (
-                    bc_corr / 1000)  # self.bc_corr has a sign, so need to add (otherwise might add when negative)
+        rad_vel_doublet_corrected = doublet_vel  # self.bc_corr has a sign, so need to add (otherwise might add when negative)
 
-        dlamb, coeff = wav_corr(np.array(wavs), bc_corr, doublet_vel)
+        dlamb = stellar_rest_frame(np.array(wavs), doublet_vel)
 
         # breakpoint()
 
@@ -1042,7 +1076,7 @@ def harps_spec(file_name):
         ax[0].set_xlim(5889.95 - 5889.95 * 220 / 3e5, 5889.95 + 5889.95 * 220 / 3e5)
         ax[0].set_ylim(min(np.array(fluxes) - 1) - 0.02, max(np.array(fluxes) - 1) + 0.02)
         ax[0].text(0.55, 0.05, fr"{clean_star_name3(star_name)} Na I D$_1$"
-                               f"\nBJD {bc_corr_time:.4f}\nRV = {vel_d1 + bc_corr / 1000:.3f}±{err_v_doublet:.3f} km/s",
+                               f"\nBJD {bc_corr_time:.4f}\nRV = {vel_d1 / 1000:.3f}±{err_v_doublet:.3f} km/s",
                    color="k", fontsize=18, transform=ax[0].transAxes,
                    bbox=dict(
                        facecolor='white',  # Box background color
@@ -1069,7 +1103,7 @@ def harps_spec(file_name):
         ax[1].set_xlim(5895.92 - 5895.92 * 220 / 3e5, 5895.92 + 5895.92 * 220 / 3e5)
         ax[1].set_ylim(min(np.array(fluxes) - 1) - 0.02, max(np.array(fluxes) - 1) + 0.02)
         ax[1].text(0.55, 0.05, fr"{clean_star_name3(star_name)} Na I D$_2$"
-                               f"\nBJD {bc_corr_time:.4f}\nRV = {vel_d2 + bc_corr / 1000:.3f}±{err_v_doublet:.3f} km/s",
+                               f"\nBJD {bc_corr_time:.4f}\nRV = {vel_d2 / 1000:.3f}±{err_v_doublet:.3f} km/s",
                    color="k", fontsize=18, transform=ax[1].transAxes,
                    bbox=dict(
                        facecolor='white',  # Box background color
@@ -1148,25 +1182,28 @@ def besos_spec(file_name):
 
     print("Plotted normalized spectrum!")
 
-    v_bis, v_grid, ccf, gaussian_width = shafter_bisector_velocity(wavs, fluxes, print_flag=False)
+    v_bis, v_grid, ccf, gaussian_width = shafter_bisector_velocity(wavs, fluxes, print_flag=False, sep=600, v_step=5)
 
-    sig_ind = np.where((wavs > 6600) & (wavs < 6625))[0]
-    sig_cont = np.std(fluxes[sig_ind] - 1)
-
-    res = analytic_sigma_v_mc_from_nonparam(wavs, fluxes,
-                                            gaussian_width_kms=gaussian_width,
-                                            p=0.25,
-                                            Ntop=5,
-                                            M_inject=400,
-                                            MC_samples=10_000)
-
-    # err_v_bis = (sig_cont * gaussian_width) / (max(np.array(fluxes) - 1) * 0.25 * np.sqrt(-2 * np.log(0.25)))
-    err_v_bis = float(res["sigma_v_median"])
+    # sig_ind = np.where((wavs > 6600) & (wavs < 6625))[0]
+    # sig_cont = np.std(fluxes[sig_ind] - 1)
+    #
+    # res = analytic_sigma_v_mc_from_nonparam(wavs, fluxes,
+    #                                         gaussian_width_kms=gaussian_width,
+    #                                         p=0.25,
+    #                                         Ntop=5,
+    #                                         M_inject=400,
+    #                                         MC_samples=10_000)
+    #
+    # # err_v_bis = (sig_cont * gaussian_width) / (max(np.array(fluxes) - 1) * 0.25 * np.sqrt(-2 * np.log(0.25)))
+    # err_v_bis = float(res["sigma_v_median"])
+    dx = 300  # Half the separation of the double Gaussians from above
+    err_v_bis = (np.sqrt(7) / np.log(4)) * (1 / der_snr(fluxes)) * np.sqrt(
+        ((1 + 0.25 * max(np.array(fluxes - 1))) * dx * 5))
 
     # err_v_bis = 0.5
     rad_vel_bc_corrected = v_bis + bc_corr / 1000  # bc_corr has a sign, so need to add (otherwise might add when negative)
 
-    dlamb, coeff = wav_corr(np.array(wavs), bc_corr, v_bis)
+    dlamb = stellar_rest_frame(np.array(wavs), v_bis)
 
     plot_ind = np.where((((np.array(wavs) - 6562.8) / 6562.8) * 3e5 > -500) &
                         (((np.array(wavs) - 6562.8) / 6562.8) * 3e5 < 500) &
@@ -1180,8 +1217,10 @@ def besos_spec(file_name):
     ax[0].plot(dlamb, np.array(fluxes) - 1,
                color="black", label="CCF")
     # ax[0].plot(v_grid, ker, c="r")
-    ax[0].vlines(6562.8 + 6562.8 * v_bis / 3e5, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
-                 lw=3)
+    # ax[0].vlines(6562.8 + 6562.8 * v_bis / 3e5, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
+    #              lw=3) # Barycentric rest frame
+    ax[0].vlines(6562.8, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
+                 lw=3) # Stellar rest frame
     ax[0].hlines(0.25 * max(fluxes - 1), dlamb[plot_ind[0]], dlamb[plot_ind[-1]], color="k", alpha=0.8, zorder=0)
     ax[0].tick_params(axis='x', labelsize=20)
     ax[0].tick_params(axis='y', labelsize=20)
@@ -1208,10 +1247,14 @@ def besos_spec(file_name):
     secax_x.tick_params(labelsize=22, which='both')
     secax_x.tick_params(axis='both', which='both', direction='in', length=10, width=1)
 
-    ax[1].plot((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=3)
+    # ax[1].plot((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=3) # Barycentric rest frame
+    ax[1].plot((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10,
+               linewidth=3)  # Stellar rest frame
     ax[1].set_ylabel("CCF", fontsize=22)
-    ax[1].hlines(0, min((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]), max((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]),
-                 color="k", linestyle="--", zorder=0)
+    # ax[1].hlines(0, min((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]), max((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]),
+    #              color="k", linestyle="--", zorder=0) # Barycentric rest frame
+    ax[1].hlines(0, min((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind]), max((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind]),
+                 color="k", linestyle="--", zorder=0) # Stellar rest frame
     ax[1].set_ylim(-1, 1)
     ax[1].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
                       width=1)
@@ -1301,9 +1344,9 @@ def besos_spec(file_name):
         # print(f"Doublet Vel: {doublet_vel}")
 
         err_v_doublet = 0.5  # Arbitrary error amount, need to check this
-        rad_vel_doublet_corrected = doublet_vel + (bc_corr / 1000)  # self.bc_corr has a sign, so need to add (otherwise might add when negative)
+        rad_vel_doublet_corrected = doublet_vel  # self.bc_corr has a sign, so need to add (otherwise might add when negative)
 
-        dlamb, coeff = wav_corr(np.array(wavs), bc_corr, doublet_vel)
+        dlamb = wavs
 
         # breakpoint()
 
@@ -1401,7 +1444,7 @@ def espresso_spec(file_name):
     with fits.open(file_name) as hdul:
         dat = hdul[1].data
         hdr = hdul[0].header
-        # breakpoint()
+        print(hdr["SPECSYS"])
 
     # XShooter spectra have wavelengths in nm instead of Å
     if hdr["INSTRUME"] == "XSHOOTER":
@@ -1464,7 +1507,7 @@ def espresso_spec(file_name):
     wavs = dat["WAVE"][0][ind]
     fluxes = dat["FLUX"][0][ind]/y
 
-    v_bis, v_grid, ccf, gaussian_width = shafter_bisector_velocity(wavs, fluxes, print_flag=False)
+    v_bis, v_grid, ccf, gaussian_width = shafter_bisector_velocity(wavs, fluxes, print_flag=False, v_step=2.26, sep=600)
 
     plot_ind = np.where((((np.array(wavs) - 6562.8) / 6562.8) * 3e5 > -500) &
                                 (((np.array(wavs) - 6562.8) / 6562.8) * 3e5 < 500) &
@@ -1472,23 +1515,29 @@ def espresso_spec(file_name):
     ccf_ind = np.where((v_grid > -500) & (v_grid < 500))[0]
     # plot_ind = np.where((np.array(fluxes[plot_ind1]) - 1) > 0.25 * max(np.array(fluxes[plot_ind1]) - 1))[0]
 
-    sig_ind = np.where((wavs > 6600) & (wavs < 6625))[0]
-    sig_cont = np.std(fluxes[sig_ind] - 1)
+    # sig_ind = np.where((wavs > 6600) & (wavs < 6625))[0]
+    # sig_cont = np.std(fluxes[sig_ind] - 1)
+    #
+    # res = analytic_sigma_v_mc_from_nonparam(wavs, fluxes,
+    #                                         gaussian_width_kms=gaussian_width,
+    #                                         p=0.25,
+    #                                         Ntop=5,
+    #                                         M_inject=400,
+    #                                         MC_samples=10_000)
+    #
+    # # err_v_bis = (sig_cont * gaussian_width) / (max(np.array(fluxes) - 1) * 0.25 * np.sqrt(-2 * np.log(0.25)))
+    # err_v_bis = float(res["sigma_v_median"])
+    dx = 300  # Half the separation of the double Gaussians from above
+    err_v_bis = (np.sqrt(7) / np.log(4)) * (1 / der_snr(fluxes)) * np.sqrt(
+        ((1 + 0.25 * max(np.array(fluxes - 1))) * dx * 2.26))
 
-    res = analytic_sigma_v_mc_from_nonparam(wavs, fluxes,
-                                            gaussian_width_kms=gaussian_width,
-                                            p=0.25,
-                                            Ntop=5,
-                                            M_inject=400,
-                                            MC_samples=10_000)
-
-    # err_v_bis = (sig_cont * gaussian_width) / (max(np.array(fluxes) - 1) * 0.25 * np.sqrt(-2 * np.log(0.25)))
-    err_v_bis = float(res["sigma_v_median"])
 
     # err_v_bis = 0.5
-    rad_vel_bc_corrected = v_bis + bc_corr/1000  # bc_corr has a sign, so need to add (otherwise might add when negative)
+    rad_vel_bc_corrected = v_bis  # bc_corr has a sign, so need to add (otherwise might add when negative)
+    rad_vel_bc_corrected -= 71.7 # Get into CHIRON frame
+    print(rad_vel_bc_corrected)
 
-    dlamb, coeff = wav_corr(np.array(wavs), bc_corr, v_bis)
+    dlamb = stellar_rest_frame(np.array(wavs), v_bis)
 
     plot_ind = np.where((((np.array(wavs) - 6562.8) / 6562.8) * 3e5 > -500) &
                         (((np.array(wavs) - 6562.8) / 6562.8) * 3e5 < 500) &
@@ -1503,8 +1552,10 @@ def espresso_spec(file_name):
     ax[0].plot(dlamb, np.array(fluxes) - 1,
                color="black", label="CCF")
     # ax[0].plot(v_grid, ker, c="r")
-    ax[0].vlines(6562.8 + 6562.8 * v_bis / 3e5, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
-                 lw=3)
+    # ax[0].vlines(6562.8 + 6562.8 * v_bis / 3e5, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
+    #              lw=3) # Barycentric rest frame
+    ax[0].vlines(6562.8, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
+                 lw=3) # Stellar rest frame
     ax[0].hlines(0.25 * max(fluxes - 1), dlamb[plot_ind[0]], dlamb[plot_ind[-1]], color="k", alpha=0.8, zorder=0)
     ax[0].tick_params(axis='x', labelsize=20)
     ax[0].tick_params(axis='y', labelsize=20)
@@ -1531,17 +1582,15 @@ def espresso_spec(file_name):
     secax_x.tick_params(labelsize=22, which='both')
     secax_x.tick_params(axis='both', which='both', direction='in', length=10, width=1)
 
-    ax[1].plot((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=3)
+    ax[1].plot((6562.8 + 6562.8 * (v_grid-v_bis) / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=3)
     ax[1].set_ylabel("CCF", fontsize=22)
-    ax[1].hlines(0, min((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]), max((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]),
+    ax[1].hlines(0, min((6562.8 + 6562.8 * (v_grid-v_bis) / 3e5)[ccf_ind]), max((6562.8 + 6562.8 * (v_grid-v_bis) / 3e5)[ccf_ind]),
                  color="k", linestyle="--", zorder=0)
     ax[1].set_ylim(-1, 1)
     ax[1].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
                       width=1)
     fig.savefig(f"ESPRESSO/Plots/RV_HAlpha_Bisector/ESPRESSO_RV_{star_name}_{obs_date}.pdf", bbox_inches="tight", dpi=300)
     plt.close()
-
-    rad_vel_bc_corrected -= 100.717
 
     if not os.path.exists("ESPRESSO/ESPRESSO_RV_Bisector.txt"):
         with open("ESPRESSO/ESPRESSO_RV_Bisector.txt", "w") as file:
@@ -1646,9 +1695,9 @@ def espresso_spec(file_name):
             # print(f"Doublet Vel: {doublet_vel}")
 
             err_v_doublet = 0.5  # Arbitratry error amount, need to check this
-            rad_vel_doublet_corrected = doublet_vel + bc_corr / 1000  # self.bc_corr has a sign, so need to add (otherwise might add when negative)
+            rad_vel_doublet_corrected = doublet_vel  # self.bc_corr has a sign, so need to add (otherwise might add when negative)
 
-            dlamb, coeff = wav_corr(np.array(wavs), bc_corr, doublet_vel)
+            dlamb = wavs
 
             fig, ax = plt.subplots(1, 2, sharey=True, figsize=(20, 10))
             plt.subplots_adjust(wspace=0)
@@ -1828,9 +1877,9 @@ def omi_pup_koubsky(file_name):
 
     err_v_bis = float(res["sigma_v_median"])
 
-    rad_vel_bc_corrected = v_bis + bc_corr / 1000  # bc_corr has a sign, so need to add (otherwise might add when negative)
+    rad_vel_bc_corrected = v_bis  # bc_corr has a sign, so need to add (otherwise might add when negative)
 
-    dlamb, coeff = wav_corr(np.array(wavs), bc_corr, v_bis)
+    dlamb = stellar_rest_frame(np.array(wavs), v_bis)
 
     plot_ind = np.where((((np.array(wavs) - 6562.8) / 6562.8) * 3e5 > -500) &
                         (((np.array(wavs) - 6562.8) / 6562.8) * 3e5 < 500) &
@@ -1845,8 +1894,10 @@ def omi_pup_koubsky(file_name):
     ax[0].plot(dlamb, np.array(fluxes) - 1,
                color="black", label="CCF")
     # ax[0].plot(v_grid, ker, c="r")
-    ax[0].vlines(6562.8 + 6562.8 * v_bis / 3e5, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
-                 lw=3)
+    # ax[0].vlines(6562.8 + 6562.8 * v_bis / 3e5, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
+    #              lw=3) # Barycentric rest frame
+    ax[0].vlines(6562.8, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1), color="r", zorder=1,
+                 lw=3) # Stellar rest frame
     ax[0].hlines(0.25 * max(fluxes - 1), dlamb[plot_ind[0]], dlamb[plot_ind[-1]], color="k", alpha=0.8, zorder=0)
     ax[0].tick_params(axis='x', labelsize=20)
     ax[0].tick_params(axis='y', labelsize=20)
@@ -1873,9 +1924,10 @@ def omi_pup_koubsky(file_name):
     secax_x.tick_params(labelsize=22, which='both')
     secax_x.tick_params(axis='both', which='both', direction='in', length=10, width=1)
 
-    ax[1].plot((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=2)
+    # ax[1].plot((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=2)
+    ax[1].plot((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle", zorder=10, linewidth=2)
     ax[1].set_ylabel("CCF", fontsize=22)
-    ax[1].hlines(0, min((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]), max((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind]),
+    ax[1].hlines(0, min((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind]), max((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind]),
                  color="k", linestyle="--", zorder=0)
     ax[1].set_ylim(-1, 1)
     ax[1].tick_params(axis='both', which='both', direction='in', labelsize=22, top=True, right=True, length=10,
@@ -1911,10 +1963,10 @@ def omi_pup_koubsky(file_name):
 uves_files = list_fits_files("UVES/")
 # iacob_files = list_fits_files("IACOB/HD91120")
 iacob_files = list_fits_files("IACOB/HD63462")
-feros_files = list_fits_files("FEROS/HD043544")
-harps_files = list_fits_files("HARPS")
+feros_files = list_fits_files("FEROS/")
+harps_files = list_fits_files("HARPS/HD158427")
 hst_files = list_fits_files("HST_Archival")
-besos_files = list_fits_files("BESOS/HD158427")
+besos_files = list_fits_files("BESOS/")
 espresso_files = list_fits_files("ESPRESSO/HD063462")
 koubsky_files = glob.glob("omiPup_Koubsky/*.fit")
 
@@ -1922,8 +1974,10 @@ koubsky_files = glob.glob("omiPup_Koubsky/*.fit")
 if __name__ == '__main__':
     plt.rcParams['font.family'] = 'Trebuchet MS'
 
-    for file in besos_files:
-        besos_spec(file)
+    for i in tqdm(range(len(besos_files))):
+        besos_spec(besos_files[i])
+        # except:
+        #     pass
 
     # with concurrent.futures.ProcessPoolExecutor() as executor:
     #     futures = [executor.submit(harps_spec, f) for f in harps_files]
@@ -1931,11 +1985,12 @@ if __name__ == '__main__':
     #     # iterate over futures as they complete
     #     for _ in tqdm(concurrent.futures.as_completed(futures), total=len(futures), colour='#8e82fe', file=sys.stdout):
     #         pass  # each finished future advances the bar
-    for a in glob.glob("BESOS/*.txt"):
-        with open(a, "r") as f:
-            # Read the names
-            star_names = sorted(f.read().splitlines())
 
-        # Write back to the file
-        with open(a, "w") as file:
-            file.write("\n".join(star_names))
+    # for a in glob.glob("BESOS/*.txt"):
+    #     with open(a, "r") as f:
+    #         # Read the names
+    #         star_names = sorted(f.read().splitlines())
+    #
+    #     # Write back to the file
+    #     with open(a, "w") as file:
+    #         file.write("\n".join(star_names))

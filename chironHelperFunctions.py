@@ -7,6 +7,10 @@ import os
 from scipy.interpolate import interp1d
 import re
 from astropy.stats import sigma_clipped_stats
+from matplotlib.animation import FuncAnimation
+from matplotlib.ticker import FormatStrFormatter
+import matplotlib.gridspec as gridspec
+from matplotlib.collections import LineCollection
 
 def model_func(x, a, b, c, d, e, f):
     return a*x**5 + b*x**4 + c*x**3 + d*x**2 + e*x + f
@@ -127,6 +131,9 @@ def recursive_sigma_clipping(wavelengths, fluxes, star_name, obs_date, order, de
 
     return continuum_fit, mask
 
+
+def gaussian_fit(x, mu, sigma, a):
+    return a*np.exp(-0.5*((x-mu)**2)/(sigma**2))
 
 def double_gaussian_fit(x, mu1, sigma1, A1, mu2, sigma2, A2):
     return A1*np.exp(-0.5*((x-mu1)**2)/(sigma1**2)) + A2*np.exp(-0.5*((x-mu2)**2)/(sigma2**2))
@@ -482,8 +489,6 @@ def clean_star_name3(raw_name: str) -> str:
 
     return name.strip()
 
-
-
 def robust_A_topN(fluxes, N=5):
     """
     Return robust amplitude A (median of top N pixels) and the indices used.
@@ -599,7 +604,7 @@ def wav_corr(wav, bar_vel, rv_vel):
     :return: Corrected wavelength grid, coefficient of correction
     """
 
-    c = 299792458.0  # m/s
+    c = 299792.4580  # km/s
 
     vel = float(bar_vel) - float(rv_vel)
     corr_coef = ((c - vel) / c)
@@ -626,8 +631,91 @@ def make_vel_wav_transforms(rest_wavelength):
     return wav_to_vel, vel_to_wav
 
 
+def barycentric_correct(wav, bar_vel):
+    """
+    Shift an entire spectrum from observatory frame to the barycentric frame.
+
+    :param wav: Observed wavelength grid
+    :param bar_vel: Barycentric velocity in km/s (positive = observatory moving away from target)
+
+    :return: wav_corr (Barycentric-corrected wavelengths) and coef (Applied scale factor)
+    """
+
+    c = 299792.4580  # km/s
+
+    coef = 1.0 - (bar_vel / c)
+
+    wav_corrected = wav / coef
+
+    return wav_corrected
+
+def stellar_rest_frame(barycentric_wav, stellar_rv):
+    """
+       Shift spectrum from barycentric frame to stellar rest frame.
+
+       :param barycentric_wav: Barycentric-corrected wavelength grid
+       :param stellar_rv: Stellar radial velocity in km/s (positive = receding)
+
+       :return: wav_rest
+   """
+    c = 299792.4580  # km/s
+
+    coef = 1 + (stellar_rv / c)
+
+    wav_rest = barycentric_wav / coef
+
+    return wav_rest
+
+
+def pixel_velocity_finder(vel: float):
+    c = 299792.4580  # km/s
+    pixel_size = vel / (c*np.log(10))
+
+    return pixel_size
+
+def log_wavelength_grid(start_wav, end_wav, pixel_velocity):
+    """
+       Create a linear log-wavelength grid that has a uniform velocity spacing
+
+       :param start_wav: The starting wavelength (in Å)
+       :param end_wav: The ending wavelength (in Å)
+       :param pixel_velocity: The desired pixel-velocity spacing (in km/s)
+
+       :return: A log-wavelength grid that has a uniform velocity spacing
+   """
+    x_arr = np.arange(np.log(start_wav), np.log(end_wav), pixel_velocity / 3e5)
+    return x_arr
+
+def der_snr(flux):
+    """
+    This function computes the signal-to-noise ratio (SNR) using the DER_SNR algorithm following the definition set
+    forth by the Spectral Container Working Group of ST-ECF, MAST and CADC (https://spektroskopie.vdsastro.de/files/pdfs/snr.pdf).
+
+    :param flux: The flux vector of the spectrum for which the SNR is to be determined
+    :return: The SNR
+    """
+    from numpy import array, where, median, abs
+
+    flux = array(flux)
+
+    # Values that are exactly zero (padded) are skipped
+    flux = array(flux[where(flux != 0.0)])
+    n = len(flux)
+
+    # For spectra shorter than this, no value can be returned
+    if n > 4:
+        signal = median(flux)
+
+        noise = 0.6052697 * median(abs(2.0 * flux[2:n - 2] - flux[0:n - 4] - flux[4:n]))
+
+        return float(signal / noise)
+
+    else:
+
+        return 0.0
+
 if __name__ == '__main__':
-    pass
+    print(pixel_velocity_finder(2.6))
     # infile = "CHIRON_Spectra/241120_planid_1034/achi241120.1157.fits"
     #
     # with fits.open(infile) as hdul:

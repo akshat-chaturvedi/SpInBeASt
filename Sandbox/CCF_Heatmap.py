@@ -12,6 +12,7 @@ import time
 from astropy.time import Time
 from SpectrumAnalyzer import spin_beast
 from scipy.optimize import curve_fit
+import seaborn as sns
 
 model_path = '../HST_Spectra/Models/Generic_Models_sdO/TLUSTY*_rec.fits'
 
@@ -302,9 +303,10 @@ def ccf_plot_heatmap(obs_spectrum, plot_index, star_name, obs_date, be_flag=Fals
         ccf_fine = griddata(points, values, (vel_fine_grid, temp_fine_grid), method='cubic')
 
         plt.rcParams['font.family'] = 'Trebuchet MS'
-        fig, ax = plt.subplots(figsize=(20, 10))
+        fig, ax = plt.subplots(figsize=(10, 10))
+        # ax.set_aspect("equal", "box")
         mesh = ax.pcolormesh(vel_fine_grid, temp_fine_grid/1000, ccf_fine,
-                       shading='auto', cmap=cm.managua, rasterized=True)
+                       shading='auto', cmap='rocket', rasterized=True)
 
         # imax, jmax = np.unravel_index(
         #     np.nanargmax(ccf_fine),
@@ -364,7 +366,7 @@ def ccf_plot_heatmap(obs_spectrum, plot_index, star_name, obs_date, be_flag=Fals
 
 
 if __name__ == '__main__':
-    spec = pd.read_csv("../HST_Spectra/HST_STIS_Spectra/HD191610_updated.csv", skiprows=1, header=None)
+    spec = pd.read_fwf("../HST_Spectra/HST_STIS_Spectra/HD043544_spectrum_data.txt", skiprows=1, header=None)
 
     obs_spec_arr = []
     col_arr = []
@@ -373,9 +375,9 @@ if __name__ == '__main__':
         obs_spec_arr.append(obs_spect)
         col_arr.append(col)
 
-    star_name_arr = ['HD191610'] * len(obs_spec_arr)
-    be_flag_arr = [True] * len(obs_spec_arr)  # Comment out when running sdO models
-    obs_jd_arr = [2458718.1438, 2458726.9457, 2458753.7662, 2461046.8076]
+    star_name_arr = ['HD043544'] * len(obs_spec_arr)
+    be_flag_arr = [False] * len(obs_spec_arr)  # Comment out when running sdO models
+    obs_jd_arr = [2458707.3743, 2458788.0173, 2458774.0484]
     obs_date_arr = []
     for obs_time in obs_jd_arr:
         obs_date_arr.append(Time(obs_time, format='jd').fits.split('T')[0])

@@ -13,12 +13,13 @@ from chara import *
 import logging
 
 # __version__ = '0.1 | 2025/07/21' # First version with number and new name :)
-#__version__ = '1.0 | 2025/07/22' # Significant structure updates
+# __version__ = '1.0 | 2025/07/22' # Significant structure updates
 # __version__ = '1.1 | 2025/07/23' # Added visual orbit analysis code
 # __version__ = '1.2 | 2025/07/25' # Cleaning up file structure, visual changes to plots, added stellar props dictionary
 # __version__ = '1.3 | 2025/08/13' # Added scripts, TLUSTY model generator, and CCF analysis functionality for HST/STIS spectra
 # __version__ = '1.4 | 2025/12/10' # Updated bisector method and error calculation, added Na doublet RV functionality, added archival spectra analysis functionality
-__version__ = '1.5 | 2026/01/26' # Updated bisector method, added new systems to star_props, added Gaussian fitting to HST CCFs
+# __version__ = '1.5 | 2026/01/26' # Updated bisector method, added new systems to star_props, added Gaussian fitting to HST CCFs
+__version__ = '1.6 | 2026/02/26' # Updated bisector method error, updated rv plots to include mass plane diagram, added readme
 
 RED = '\033[91m'
 GREEN = '\033[92m'
@@ -46,8 +47,8 @@ def apo_main(file_name: str):
         force=True  # IMPORTANT: Overwrites previous configs, needed in subprocesses
     )
     star = ARCESSpectrum(file_name)
-    star.spec_plot(full_spec=True, na_1_doublet=True)
-    # star.multi_epoch_spec()
+    star.spec_plot(full_spec=False, na_1_doublet=True)
+    star.multi_epoch_spec(na_1_doublet=True)
     star.radial_velocity_bisector()
     star.radial_velocity_doublet()
     logging.info(f'ARCES Spectrum Analyzed: {star.star_name}, Observation Date: {star.obs_date}')
@@ -79,13 +80,14 @@ def chiron_main(file_name: str):
     )
 
     star = CHIRONSpectrum(file_name)
-    star.blaze_corrected_plotter(he_1_6678=True, full_spec=True, na_1_doublet=False)
-    # star.multi_epoch_spec(avg_h_alpha=True)
-    # star.multi_epoch_spec(dynamic_h_alpha=True, p=236.50, t_0=2458672.10, na_1_doublet=False, avg_na_1_doublet=False,
-    #                       dynamic_na_doublet=False)
+    star.blaze_corrected_plotter(he_1_5015=False, full_spec=False, na_1_doublet=True, he_1_6678=True, he_1_5876=True)
+    # star.multi_epoch_spec(h_alpha_animation=True)
+    # star.multi_epoch_spec(dynamic_h_alpha=True, p=85.33, t_0=2460653.93, na_1_doublet=True, avg_na_1_doublet=False,
+    #                       dynamic_na_doublet=True)
     # star.radial_velocity()
     star.radial_velocity_bisector(print_crossings=False)
-    star.radial_velocity_doublet()
+    # star.radial_velocity_doublet()
+    # star.radial_velocity_he()
     logging.info(f'CHIRON Spectrum Analyzed: {star.star_name}, Observation Date: {star.obs_date}')
 
     # rv_files = glob.glob("CHIRON_Spectra/StarSpectra/RV_Measurements/*_RV.txt", recursive=True)
@@ -102,24 +104,25 @@ if __name__ == '__main__':
     t1 = time.perf_counter()
     # chiron_fits_files = list_fits_files("CHIRON_Spectra/StarSpectra/")
     # chiron_fits_files = list_fits_files("CHIRON_Spectra/Archival/")
-    # chiron_fits_files = glob.glob("CHIRON_Spectra/StarSpectra/HR2249*.fits")
-    apo_fits_files = list_fits_files("APO_Spectra/FitsFiles/")
-    # apo_fits_files = glob.glob("APO_Spectra/FitsFiles/tellHD043544.0049.ex.ec.fits")
+    chiron_fits_files = glob.glob("CHIRON_Spectra/StarSpectra/alfAra*.fits")
+    # apo_fits_files = list_fits_files("APO_Spectra/FitsFiles/")
+    # apo_fits_files = glob.glob("APO_Spectra/Spec_Reductions/Final/UT260123/*HD41335*.fits")
     # chiron_main("CHIRON_Spectra/StarSpectra/alfAra_First.fits")
     # apo_main()
     # hst_main()
     # hst_fits_files = list_fits_files_hst("HST_Spectra")
-    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "r") as f:
+    # with open("APO_Spectra/APOInventory.txt", "r") as f:
     # #     # Read the names
     #     star_names = sorted(f.read().splitlines())
     # #
     # # Write back to the file
-    # with open("CHIRON_Spectra/StarSpectra/CHIRONInventoryRV_Bisector.txt", "w") as file:
+    # with open("APO_Spectra/APOInventory.txt", "w") as file:
     #     file.write("\n".join(star_names))
 
     # sky_plot()
     with concurrent.futures.ProcessPoolExecutor() as executor:
-        futures = [executor.submit(apo_main, f) for f in apo_fits_files]
+        futures = [executor.submit(chiron_main, f) for f in chiron_fits_files]
+        # futures = [executor.submit(apo_main, f) for f in apo_fits_files]
 
         # iterate over futures as they complete
         for _ in tqdm(concurrent.futures.as_completed(futures), total=len(futures), colour='#8e82fe', file=sys.stdout):
@@ -129,6 +132,7 @@ if __name__ == '__main__':
     # for file in chiron_fits_files:
     #     print(file)
     #     chiron_main(file)
+    #     # break
     #     except:
     #         pass
     # for file in apo_fits_files:

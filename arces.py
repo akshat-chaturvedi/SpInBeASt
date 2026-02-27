@@ -124,12 +124,12 @@ class ARCESSpectrum:
             fig.savefig(f"APO_Spectra/SpectrumPlots/HAlpha/{self.star_name}_{self.obs_date}.pdf",
                         bbox_inches="tight", dpi=300)
             plt.close()
-
+            # breakpoint()
             wavs = pd.Series(w)
             fluxes = pd.Series(self.dat)
             df = pd.concat([wavs, fluxes], axis="columns")
             df.columns = ["Wavelength", "Flux"]
-            df.to_csv(f"APO_Spectra/SpectraData/{self.star_name}_{self.obs_date}.csv",
+            df.to_csv(f"APO_Spectra/SpectraData/HAlpha/{self.star_name}_{self.obs_date}.csv",
                       index=False)
 
         if h_beta:
@@ -212,13 +212,14 @@ class ARCESSpectrum:
             plt.close()
 
 
-    def multi_epoch_spec(self, h_alpha=True, h_beta=True):
+    def multi_epoch_spec(self, h_alpha=True, h_beta=True, na_1_doublet=False):
         """
         Plots the multi-epoch H Alpha and Beta orders for stars with multiple observations
 
         Parameters:
             h_alpha (bool): Default=True, plots the multi-epoch orders of the spectra containing H Alpha 6563 Å
             h_beta (bool): Default=True, plots the multi-epoch orders of the spectra containing H Beta 4862 Å
+            na_1_doublet (bool): Default=False, plots the multi-epoch spectra of the orders containing the Na D doublet
 
         Returns:
             None
@@ -259,7 +260,7 @@ class ARCESSpectrum:
                     ax.plot(wavs[i], fluxes[i] + offset, c=color)
                     offset += offset_step
 
-                ax.set_title(fr'Multi-epoch {self.star_name} H$\alpha$', fontsize=24)
+                # ax.set_title(fr'Multi-epoch {self.star_name} H$\alpha$', fontsize=24)
                 ax.set_xlabel("Wavelength [Å]", fontsize=22)
                 ax.set_ylabel("Normalized Flux + offset", fontsize=22)
                 ax.tick_params(axis='both', which='both', direction='in', top=True, right=True)
@@ -304,12 +305,26 @@ class ARCESSpectrum:
                     wavs.append(np.array(dat["Wavelength"]))
                     fluxes.append(np.array(dat["Flux"]))
 
+                sorted_inds = np.argsort(jds)
+                jds = np.array(jds)[sorted_inds]
+                wavs = np.array(wavs)[sorted_inds]
+                fluxes = np.array(fluxes)[sorted_inds]
+
                 # plt.rcParams['font.family'] = 'Trebuchet MS'
                 fig, ax = plt.subplots(figsize=(20, 10))
-                colors = ["k", "r"]
+                cmap = cm.berlin
+                norm = Normalize(vmin=(jds - 2400000).min(), vmax=(jds - 2400000).max())
+                sm = mpcm.ScalarMappable(norm=norm, cmap=cmap)
+
+                offset_step = 0.05
+                offset = 0
+
                 for i in range(len(wavs)):
-                    ax.plot(wavs[i], fluxes[i], c=colors[i], label=f"HJD={jds[i]:.3f}")
-                ax.set_title(fr'Multi-epoch {self.star_name} H$\beta$', fontsize=24)
+                    color = sm.to_rgba((jds - 2400000)[i])
+                    ax.plot(wavs[i], fluxes[i], c=color, label=f"HJD={jds[i]:.3f}")
+                    offset += offset_step
+
+                # ax.set_title(fr'Multi-epoch {self.star_name} H$\beta$', fontsize=24)
                 ax.set_xlabel("Wavelength [Å]", fontsize=22)
                 ax.set_ylabel("Normalized Flux", fontsize=22)
                 ax.tick_params(axis='both', which='both', direction='in', top=True, right=True)
@@ -318,11 +333,92 @@ class ARCESSpectrum:
                 ax.tick_params(axis='both', which='major', length=10, width=1)
                 ax.yaxis.get_offset_text().set_size(20)
                 ax.legend(loc="upper right", fontsize=18)
-                ax.set_xlim(4800, 5000)
-                mask = (wavs[1] >= 4800) & (wavs[1] <= 5000)
-                ax.set_ylim(0.5, np.max(fluxes[1][mask]) + 0.25)
+                ax.text(0.05, 0.92, fr"{clean_star_name3(self.star_name)} H$\beta$",
+                        color="k", fontsize=18, transform=ax.transAxes,
+                        bbox=dict(
+                            facecolor='white',  # Box background color
+                            edgecolor='black',  # Box border color
+                            boxstyle='square,pad=0.3',  # Rounded box with padding
+                            alpha=0.9  # Slight transparency
+                        )
+                        )
+                ax.yaxis.get_offset_text().set_size(20)
+                ax.set_xlim(4861.35 - 4861.35 * 500 / 3e5, 4861.35 + 4861.35 * 500 / 3e5)
+                mask = (wavs[1] >= 4861.35 - 4861.35 * 500 / 3e5) & (wavs[1] <= 4861.35 + 4861.35 * 500 / 3e5)
+
+                # Add colorbar
+                cbar = fig.colorbar(sm, ax=ax, pad=0.02)
+                cbar.set_label("BJD-2400000", fontsize=20)
+                cbar.ax.tick_params(labelsize=18)
+
+                ax.set_ylim(np.min([arr[mask].min() for arr in fluxes]) - 0.25,
+                            np.max([arr[mask].max() for arr in fluxes]) + 0.25)
+
                 fig.savefig(f"APO_Spectra/SpectrumPlots/Multi_Epoch/HBeta/ME_HBeta_{self.star_name}.pdf",
                             bbox_inches="tight", dpi=300)
+                plt.close()
+
+        if na_1_doublet:
+            csv_files = glob.glob(f"APO_Spectra/SpectraData/Na_I_Doublet/{self.star_name}*.csv")
+            if len(csv_files) > 1:
+                apo_inventory = pd.read_csv("APO_Spectra/APOInventory.txt",
+                                               header=None)
+                wavs = []
+                fluxes = []
+                jds = []
+                for f in csv_files:
+                    ind = np.where((apo_inventory[2] == f.split("/")[3].split("_")[1].split(".")[0]) &
+                                   (apo_inventory[0] == f.split("/")[3].split("_")[0]))[0]
+                    # breakpoint()
+                    jds.append(np.array(apo_inventory[1][ind])[0])
+                    dat = pd.read_csv(f)
+                    wavs.append(np.array(dat["Wavelength"]))
+                    fluxes.append(np.array(dat["Flux"]))
+
+                sorted_inds = np.argsort(jds)
+                jds = np.array(jds)[sorted_inds]
+                wavs = np.array(wavs)[sorted_inds]
+                fluxes = np.array(fluxes)[sorted_inds]
+
+                fig, ax = plt.subplots(figsize=(20, 10))
+                # colors = ["k", "r"]
+                # Colormap
+                cmap = cm.berlin
+                norm = Normalize(vmin=(jds - 2400000).min(), vmax=(jds - 2400000).max())
+                sm = mpcm.ScalarMappable(norm=norm, cmap=cmap)
+
+                # Plot stacked spectra
+                offset_step = 0.1
+                offset = 0
+
+                for i in range(len(wavs)):
+                    color = sm.to_rgba((jds - 2400000)[i])
+                    ax.plot(wavs[i], fluxes[i] + offset, c=color)
+                    offset += offset_step
+
+                # Labels / axis
+                ax.set_title(fr'Multi-epoch {clean_star_name3(self.star_name)} Na I Doublet', fontsize=24)
+                ax.set_xlabel("Wavelength [Å]", fontsize=22)
+                ax.set_ylabel("Normalized Flux + offset", fontsize=22)
+
+                ax.tick_params(axis='both', which='both', direction='in', top=True, right=True)
+                ax.tick_params(axis='y', which='major', labelsize=20)
+                ax.tick_params(axis='x', which='major', labelsize=20)
+                ax.tick_params(axis='both', which='major', length=10, width=1)
+                ax.yaxis.get_offset_text().set_size(20)
+
+                ax.set_xlim(5886, 5900)
+
+                # Add colorbar
+                cbar = fig.colorbar(sm, ax=ax, pad=0.02)
+                cbar.set_label("BJD-2400000", fontsize=20)
+                cbar.ax.tick_params(labelsize=18)
+
+                # Save
+                fig.savefig(
+                    f"APO_Spectra/SpectrumPlots/Multi_Epoch/Na_I_Doublet/ME_Na_I_Doublet_{self.star_name}.pdf",
+                    bbox_inches="tight", dpi=300
+                )
                 plt.close()
 
     def radial_velocity_bisector(self, print_rad_vel=False, print_crossings=False):
@@ -347,32 +443,35 @@ class ARCESSpectrum:
         with fits.open("APO_Spectra/woned.fits") as wavelengths:
             wavs = wavelengths[0].data
 
-        mask = (wavs >= 6550) & (wavs <= 6620)
+        mask = (wavs >= 6500) & (wavs <= 6620)
         wavs = wavs[mask]
         fluxes = self.dat[mask]
 
-        v_bis, v_grid, ccf, gaussian_width = shafter_bisector_velocity(wavs, fluxes, print_flag=print_crossings)
+        v_bis, v_grid, ccf, gaussian_width = shafter_bisector_velocity(wavs, fluxes, print_flag=print_crossings, v_step=5, sep=600)
 
         sig_ind = np.where(wavs > 6600)[0]
         sig_cont = np.std(fluxes[sig_ind] - 1)
 
-        res = analytic_sigma_v_mc_from_nonparam(wavs, fluxes,
-                                                gaussian_width_kms=gaussian_width,
-                                                p=0.25,
-                                                Ntop=5,
-                                                M_inject=400,
-                                                MC_samples=10_000)
+        # res = analytic_sigma_v_mc_from_nonparam(wavs, fluxes,
+        #                                         gaussian_width_kms=gaussian_width,
+        #                                         p=0.25,
+        #                                         Ntop=5,
+        #                                         M_inject=400,
+        #                                         MC_samples=10_000)
 
         # err_v_bis = (sig_cont * gaussian_width) / (max(np.array(fluxes) - 1) * 0.25 * np.sqrt(-2 * np.log(0.25)))
-        err_v_bis = float(res["sigma_v_median"])
+        # err_v_bis = float(res["sigma_v_median"])
+        dx = 300  # Half the separation of the double Gaussians from above
+        err_v_bis = (np.sqrt(7) / np.log(4)) * (1 / der_snr(fluxes)) * np.sqrt(
+            ((1 + 0.25 * max(np.array(fluxes - 1))) * dx * 5))
 
-        rad_vel_bc_corrected = v_bis + self.bc_corr / 1000  # self.bc_corr has a sign, so need to add (otherwise might add when negative)
+        rad_vel_bc_corrected = v_bis  # Spectrum already in heliocentric rest frame (set during reduction process in IDL)
         if print_rad_vel:
             print(f"Radial Velocity: \033[92m{rad_vel_bc_corrected:.3f} km/s\033[0m")
 
         # print(f"{self.obs_date} : Barycentric Correction = {self.bc_corr / 1000}")
 
-        dlamb, coeff = wav_corr(np.array(wavs), self.bc_corr, v_bis)
+        dlamb = stellar_rest_frame(np.array(wavs), v_bis)
 
         plot_ind = np.where((((np.array(wavs) - 6562.8) / 6562.8) * 3e5 > -500) &
                             (((np.array(wavs) - 6562.8) / 6562.8) * 3e5 < 500) &
@@ -388,8 +487,10 @@ class ARCESSpectrum:
         ax[0].plot(dlamb, np.array(fluxes) - 1,
                    color="black", label="CCF")
         # ax[0].plot(v_grid, ker, c="r")
-        ax[0].vlines(6562.8 + 6562.8 * rad_vel_bc_corrected / 3e5, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1),
-                     color="r", zorder=1, lw=3)
+        # ax[0].vlines(6562.8 + 6562.8 * rad_vel_bc_corrected / 3e5, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1),
+        #              color="r", zorder=1, lw=3) # Barycentric rest frame
+        ax[0].vlines(6562.8, 0.15 * max(fluxes - 1), 0.35 * max(fluxes - 1),
+                     color="r", zorder=1, lw=3) # Stellar rest frame
         ax[0].hlines(0.25 * max(fluxes - 1), dlamb[plot_ind[0]], dlamb[plot_ind[-1]], color="k", alpha=0.8, zorder=0)
         ax[0].tick_params(axis='x', labelsize=20)
         ax[0].tick_params(axis='y', labelsize=20)
@@ -415,8 +516,10 @@ class ARCESSpectrum:
         secax_x.tick_params(labelsize=22, which='both')
         secax_x.tick_params(axis='both', which='both', direction='in', length=10, width=1)
 
-        ax[1].plot((6562.8 + 6562.8 * (v_grid + self.bc_corr / 1000) / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle",
-                   zorder=10, linewidth=3)
+        # ax[1].plot((6562.8 + 6562.8 * v_grid / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle",
+        #            zorder=10, linewidth=3) # Barycentric rest frame
+        ax[1].plot((6562.8 + 6562.8 * (v_grid - v_bis) / 3e5)[ccf_ind], ccf[ccf_ind], c="xkcd:periwinkle",
+                   zorder=10, linewidth=3) # Stellar rest frame
         ax[1].set_ylabel("CCF", fontsize=22)
         ax[1].hlines(0, 6562.8 - 6562.8 * 500 / 3e5, 6562.8 + 6562.8 * 500 / 3e5, color="k", linestyle="--", zorder=0)
         ax[1].set_ylim(-1, 1)
@@ -432,10 +535,10 @@ class ARCESSpectrum:
         wavs = pd.Series(dlamb)
         fluxes = pd.Series(fluxes)
 
-        df = pd.concat([wavs, fluxes], axis="columns")
-        df.columns = ["Wavelength", "Flux"]
-        df.to_csv(f"APO_Spectra/SpectraData/HAlpha/{self.star_name}_{self.obs_date}_BCCorrected.csv",
-                  index=False)
+        # df = pd.concat([wavs, fluxes], axis="columns")
+        # df.columns = ["Wavelength", "Flux"]
+        # df.to_csv(f"APO_Spectra/SpectraData/HAlpha/{self.star_name}_{self.obs_date}_BCCorrected.csv",
+        #           index=False)
 
         if not os.path.exists("APO_Spectra/APOInventoryRV_Bisector.txt"):
             with open("APO_Spectra/APOInventoryRV_Bisector.txt", "w") as file:
@@ -524,9 +627,9 @@ class ARCESSpectrum:
             # print(f"Doublet Vel: {doublet_vel}")
 
             err_v_doublet = 0.5  # Arbitrary error amount, need to check this
-            rad_vel_doublet_corrected = doublet_vel + (self.bc_corr / 1000)  # self.bc_corr has a sign, so need to add (otherwise might add when negative)
+            rad_vel_doublet_corrected = doublet_vel # self.bc_corr has a sign, so need to add (otherwise might add when negative)
             # breakpoint()
-            dlamb, coeff = wav_corr(np.array(wavs), self.bc_corr, doublet_vel)
+            dlamb = np.array(wavs)
 
             if print_rad_vel:
                 print(f"Radial Velocity: \033[92m{rad_vel_doublet_corrected:.3f} km/s\033[0m")
