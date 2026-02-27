@@ -91,7 +91,7 @@ def rv_plot(star_name, show_raw_plot=False, params=None, t_0=None):
     )
 
     joker = tj.TheJoker(prior)
-    prior_samples = prior.sample(size=200_000)
+    prior_samples = prior.sample(size=1_000_000)
     samples = joker.rejection_sample(data, prior_samples, max_posterior_samples=2096)
 
     def get_median_and_errors(arr):
